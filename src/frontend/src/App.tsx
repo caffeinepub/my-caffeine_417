@@ -31,6 +31,7 @@ import {
   BarChart3,
   CheckCircle,
   ClipboardList,
+  Info,
   LayoutDashboard,
   Menu,
   PackageSearch,
@@ -39,6 +40,7 @@ import {
   Pill,
   Plus,
   Printer,
+  Settings,
   ShoppingCart,
   Trash2,
   TrendingDown,
@@ -59,16 +61,35 @@ import { useActor } from "./hooks/useActor";
 type Page =
   | "dashboard"
   | "medicines"
-  | "sales"
-  | "purchases"
   | "due"
+  | "dueledger"
+  | "purchases"
   | "reports"
   | "income"
-  | "expense";
+  | "expense"
+  | "settings"
+  | "about";
 
-const PHARMACY_NAME = "সাওম ফার্মেসি";
-const PHARMACY_ADDRESS = "বালিগাঁও, লাখাই, হবিগঞ্জ";
-const PHARMACY_PHONE = "01XXXXXXXXX";
+// Pharmacy info now dynamic (see getPharmacyInfo + state in App component)
+interface PharmacySettings {
+  name: string;
+  address: string;
+  phone: string;
+  email: string;
+  logoUrl: string;
+}
+function getPharmacyInfo(): PharmacySettings {
+  const stored = localStorage.getItem("pharmacySettings");
+  if (stored) return JSON.parse(stored);
+  return {
+    name: "সাওম ফার্মেসি",
+    address: "বালিগাঁও, লাখাই, হবিগঞ্জ",
+    phone: "01XXXXXXXXX",
+    email: "",
+    logoUrl:
+      "/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg",
+  };
+}
 
 const VILLAGES: Record<string, string[]> = {
   বালিগাঁও: [
@@ -91,16 +112,6 @@ function getItemTypes(): string[] {
   const base = ["ট্যাবলেট", "ক্যাপসুল", "সিরাপ", "ইনজেকশন", "অন্যান্য"];
   const custom = JSON.parse(localStorage.getItem("customItemTypes") || "[]");
   return [...base, ...custom];
-}
-
-function addCustomItemType(type: string) {
-  const existing = JSON.parse(localStorage.getItem("customItemTypes") || "[]");
-  if (!existing.includes(type)) {
-    localStorage.setItem(
-      "customItemTypes",
-      JSON.stringify([...existing, type]),
-    );
-  }
 }
 
 function formatDate(nano: bigint): string {
@@ -132,12 +143,14 @@ function taka(amount: number): string {
 const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
   { id: "dashboard", label: "ড্যাশবোর্ড", icon: <LayoutDashboard size={18} /> },
   { id: "medicines", label: "ওষুধ স্টক", icon: <Pill size={18} /> },
-  { id: "sales", label: "বিক্রয়", icon: <ShoppingCart size={18} /> },
+  { id: "due", label: "বিক্রয়", icon: <ShoppingCart size={18} /> },
+  { id: "dueledger", label: "বকেয়া খাতা", icon: <ClipboardList size={18} /> },
   { id: "purchases", label: "ক্রয়", icon: <PackageSearch size={18} /> },
-  { id: "due", label: "বকেয়া লিস্ট", icon: <ClipboardList size={18} /> },
   { id: "income", label: "আয়", icon: <TrendingUp size={18} /> },
   { id: "expense", label: "ব্যয়", icon: <TrendingDown size={18} /> },
   { id: "reports", label: "রিপোর্ট", icon: <BarChart3 size={18} /> },
+  { id: "settings", label: "সেটিং", icon: <Settings size={18} /> },
+  { id: "about", label: "আমাদের সম্পর্কে", icon: <Info size={18} /> },
 ];
 
 function Sidebar({
@@ -145,11 +158,13 @@ function Sidebar({
   onChange,
   open,
   onClose,
+  pharmacySettings,
 }: {
   current: Page;
   onChange: (p: Page) => void;
   open: boolean;
   onClose: () => void;
+  pharmacySettings: PharmacySettings;
 }) {
   return (
     <>
@@ -171,16 +186,16 @@ function Sidebar({
       >
         <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
           <img
-            src="/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg"
+            src={pharmacySettings.logoUrl}
             alt="লোগো"
             className="w-10 h-10 rounded-full object-cover flex-shrink-0 mr-3"
           />
           <div>
             <div className="text-white font-bold text-lg leading-tight">
-              {PHARMACY_NAME}
+              {pharmacySettings.name}
             </div>
             <div className="text-white/60 text-xs mt-0.5">
-              {PHARMACY_ADDRESS}
+              {pharmacySettings.address}
             </div>
           </div>
           <button
@@ -1078,12 +1093,6 @@ function MedicinesPage({
   const [deleteId, setDeleteId] = useState<bigint | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function openAdd() {
-    setEditRecord(null);
-    setForm(emptyMedForm());
-    setOpen(true);
-  }
-
   function openEdit(m: MedicineRecord) {
     setEditRecord(m);
     const parsed = parseMedicineName(m.name);
@@ -1165,13 +1174,6 @@ function MedicinesPage({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">ওষুধ স্টক</h1>
-        <Button
-          data-ocid="medicines.add_button"
-          onClick={openAdd}
-          style={{ backgroundColor: "#1F6D63" }}
-        >
-          <Plus size={16} className="mr-1" /> নতুন ওষুধ
-        </Button>
       </div>
 
       <div className="bg-card rounded-lg shadow-card overflow-auto">
@@ -1437,57 +1439,153 @@ function SalesPage({
   onRefresh: () => void;
   actor: backendInterface | null;
 }) {
-  const [medId, setMedId] = useState("");
-  const [qty, setQty] = useState("1");
-  const [customerName, setCustomerName] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [printSale, setPrintSale] = useState<SaleRecord | null>(null);
+  type MedRow = {
+    rowId: string;
+    medId: string;
+    qty: string;
+  };
 
-  const selectedMed = medicines.find((m) => String(m.id) === medId);
-  const unitPrice = selectedMed ? Number(selectedMed.sellingPrice) : 0;
-  const total = unitPrice * (Number.parseInt(qty) || 0);
+  const [customerName, setCustomerName] = useState("");
+  const [mobile, setMobile] = useState("");
+  const [village, setVillage] = useState("বালিগাঁও");
+  const [neighborhood, setNeighborhood] = useState("");
+  const [fatherName, setFatherName] = useState("");
+  const [paymentStatus, setPaymentStatus] = useState<"নগদ" | "বাকি">("নগদ");
+  const [rows, setRows] = useState<MedRow[]>([
+    { rowId: "1", medId: "", qty: "1" },
+  ]);
+  const [saving, setSaving] = useState(false);
+  const [printSales, setPrintSales] = useState<SaleRecord[] | null>(null);
+
+  function addRow() {
+    setRows((prev) => [
+      ...prev,
+      { rowId: String(Date.now()), medId: "", qty: "1" },
+    ]);
+  }
+
+  function removeRow(rowId: string) {
+    setRows((prev) => prev.filter((r) => r.rowId !== rowId));
+  }
+
+  function updateRow(rowId: string, field: "medId" | "qty", value: string) {
+    setRows((prev) =>
+      prev.map((r) => (r.rowId === rowId ? { ...r, [field]: value } : r)),
+    );
+  }
+
+  const grandTotal = rows.reduce((sum, row) => {
+    const med = medicines.find((m) => String(m.id) === row.medId);
+    if (!med) return sum;
+    return sum + Number(med.sellingPrice) * (Number.parseInt(row.qty) || 0);
+  }, 0);
 
   async function handleSubmit() {
-    if (!medId) {
-      toast.error("ওষুধ বেছে নিন");
+    const filledRows = rows.filter(
+      (r) => r.medId && Number.parseInt(r.qty) > 0,
+    );
+    if (filledRows.length === 0) {
+      toast.error("কমপক্ষে একটি ওষুধ যোগ করুন");
       return;
     }
-    if (!qty || Number.parseInt(qty) <= 0) {
-      toast.error("পরিমাণ দিন");
+    if (!customerName.trim() && paymentStatus === "বাকি") {
+      toast.error("বাকি বিক্রয়ের জন্য কাস্টমারের নাম দিন");
       return;
     }
-    if (!selectedMed) return;
-    if (Number(selectedMed.quantity) < Number.parseInt(qty)) {
-      toast.error("পর্যাপ্ত স্টক নেই");
-      return;
+    for (const row of filledRows) {
+      const med = medicines.find((m) => String(m.id) === row.medId);
+      if (!med) continue;
+      if (Number(med.quantity) < Number.parseInt(row.qty)) {
+        toast.error(`${med.name}-এর পর্যাপ্ত স্টক নেই`);
+        return;
+      }
     }
+
     setSaving(true);
+    const invoiceNumber = BigInt(Date.now());
+    const createdSales: SaleRecord[] = [];
+
     try {
-      const invoiceNumber = BigInt(Date.now());
-      const saleRecord: SaleRecord = {
-        id: BigInt(0),
-        medicineId: selectedMed.id,
-        medicineName: selectedMed.name,
-        brand: selectedMed.brand,
-        quantity: BigInt(Number.parseInt(qty)),
-        unitPrice: selectedMed.sellingPrice,
-        totalPrice: BigInt(total),
-        customerName: customerName.trim() || undefined,
-        date: nowNano(),
-        invoiceNumber,
-        notes: undefined,
-      };
-      await actor?.createSale(saleRecord);
-      // Update stock
-      const updated: MedicineRecord = {
-        ...selectedMed,
-        quantity: selectedMed.quantity - BigInt(Number.parseInt(qty)),
-      };
-      await actor?.updateMedicine(selectedMed.id, updated);
+      for (const row of filledRows) {
+        const med = medicines.find((m) => String(m.id) === row.medId);
+        if (!med) continue;
+        const qty = Number.parseInt(row.qty);
+        const unitP = Number(med.sellingPrice);
+        const total = unitP * qty;
+
+        const saleRecord: SaleRecord = {
+          id: BigInt(0),
+          medicineId: med.id,
+          medicineName: med.name,
+          brand: med.brand,
+          quantity: BigInt(qty),
+          unitPrice: med.sellingPrice,
+          totalPrice: BigInt(total),
+          customerName: customerName.trim() || undefined,
+          date: nowNano(),
+          invoiceNumber,
+          notes: paymentStatus === "বাকি" ? "বাকি" : undefined,
+        };
+        await actor?.createSale(saleRecord);
+        createdSales.push(saleRecord);
+
+        // Update stock
+        await actor?.updateMedicine(med.id, {
+          ...med,
+          quantity: med.quantity - BigInt(qty),
+        });
+
+        if (paymentStatus === "বাকি") {
+          const dueRecord: DueRecord = {
+            id: BigInt(0),
+            customerName: customerName.trim(),
+            village,
+            neighborhood,
+            mobile: mobile.trim(),
+            fatherName: fatherName.trim(),
+            medicineId: med.id,
+            medicineName: med.name,
+            itemType: med.itemType || "ট্যাবলেট",
+            quantity: BigInt(qty),
+            unitPrice: med.sellingPrice,
+            totalPrice: BigInt(total),
+            status: "Due",
+            date: nowNano(),
+          };
+          await actor?.addDueRecord(dueRecord);
+          const cashPaidMap = JSON.parse(
+            localStorage.getItem("pharma_customer_cashpaid") || "{}",
+          );
+          const custKey = `${customerName.trim()}|${village}|${neighborhood}`;
+          cashPaidMap[custKey] = cashPaidMap[custKey] || 0;
+          localStorage.setItem(
+            "pharma_customer_cashpaid",
+            JSON.stringify(cashPaidMap),
+          );
+        }
+
+        if (paymentStatus === "নগদ") {
+          const incomeRecords = JSON.parse(
+            localStorage.getItem("incomeRecords") || "[]",
+          );
+          incomeRecords.push({
+            id: Date.now().toString() + Math.random(),
+            date: new Date().toISOString().split("T")[0],
+            amount: total,
+            description: `বিক্রয় - ${med.name} - Invoice#${String(invoiceNumber).slice(-6)}`,
+          });
+          localStorage.setItem("incomeRecords", JSON.stringify(incomeRecords));
+        }
+      }
+
       toast.success("বিক্রয় সম্পন্ন হয়েছে");
-      setMedId("");
-      setQty("1");
       setCustomerName("");
+      setMobile("");
+      setVillage("বালিগাঁও");
+      setNeighborhood("");
+      setFatherName("");
+      setPaymentStatus("নগদ");
+      setRows([{ rowId: "1", medId: "", qty: "1" }]);
       onRefresh();
     } catch (e) {
       toast.error(`ত্রুটি: ${String(e)}`);
@@ -1497,7 +1595,7 @@ function SalesPage({
   }
 
   function handlePrint(sale: SaleRecord) {
-    setPrintSale(sale);
+    setPrintSales([sale]);
     setTimeout(() => window.print(), 300);
   }
 
@@ -1508,79 +1606,253 @@ function SalesPage({
       <h1 className="text-2xl font-bold">বিক্রয়</h1>
 
       {/* Sale Form */}
-      <div className="bg-card rounded-lg shadow-card p-5">
-        <h2 className="font-semibold mb-4">নতুন বিক্রয়</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="lg:col-span-2">
-            <Label>ওষুধ বেছে নিন</Label>
-            <Select value={medId} onValueChange={setMedId}>
-              <SelectTrigger data-ocid="sales.select">
-                <SelectValue placeholder="ওষুধ নির্বাচন করুন" />
-              </SelectTrigger>
-              <SelectContent>
-                {medicines.map((m) => (
-                  <SelectItem key={String(m.id)} value={String(m.id)}>
-                    {m.name} ({m.brand}) - স্টক: {String(m.quantity)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="bg-card rounded-lg shadow-card p-5 space-y-5">
+        <h2 className="font-semibold text-lg border-b pb-2">নতুন বিক্রয়</h2>
+
+        {/* Customer Details */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">
+            কাস্টমারের তথ্য
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <Label>
+                কাস্টমার নাম{" "}
+                {paymentStatus === "বাকি" && (
+                  <span className="text-red-500">*</span>
+                )}
+              </Label>
+              <Input
+                data-ocid="sales.customer.input"
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="কাস্টমারের নাম লিখুন"
+              />
+            </div>
+            <div>
+              <Label>মোবাইল নম্বর</Label>
+              <Input
+                data-ocid="sales.mobile.input"
+                type="tel"
+                value={mobile}
+                onChange={(e) => setMobile(e.target.value)}
+                placeholder="01XXXXXXXXX"
+              />
+            </div>
+            <div>
+              <Label>পিতার নাম</Label>
+              <Input
+                data-ocid="sales.father.input"
+                value={fatherName}
+                onChange={(e) => setFatherName(e.target.value)}
+                placeholder="পিতার নাম"
+              />
+            </div>
+            <div>
+              <Label>গ্রাম</Label>
+              <Select
+                value={village}
+                onValueChange={(v) => {
+                  setVillage(v);
+                  setNeighborhood("");
+                }}
+              >
+                <SelectTrigger data-ocid="sales.village.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.keys(VILLAGES).map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>পাড়া</Label>
+              <Select value={neighborhood} onValueChange={setNeighborhood}>
+                <SelectTrigger data-ocid="sales.neighborhood.select">
+                  <SelectValue placeholder="পাড়া বেছে নিন" />
+                </SelectTrigger>
+                <SelectContent>
+                  {(VILLAGES[village] || []).map((n) => (
+                    <SelectItem key={n} value={n}>
+                      {n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-          <div>
-            <Label>পরিমাণ</Label>
-            <Input
-              data-ocid="sales.input"
-              type="number"
-              min="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
-            />
+        </div>
+
+        {/* Medicine Rows */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">
+            ওষুধের তালিকা
+          </h3>
+          <div className="space-y-2">
+            {rows.map((row, i) => {
+              const med = medicines.find((m) => String(m.id) === row.medId);
+              const rowTotal = med
+                ? Number(med.sellingPrice) * (Number.parseInt(row.qty) || 0)
+                : 0;
+              return (
+                <div
+                  key={row.rowId}
+                  data-ocid={`sales.item.${i + 1}`}
+                  className="grid grid-cols-12 gap-2 items-end p-3 bg-muted/30 rounded-lg"
+                >
+                  {/* Medicine select — 5 cols */}
+                  <div className="col-span-12 sm:col-span-5">
+                    {i === 0 && <Label className="text-xs">ওষুধ</Label>}
+                    <Select
+                      value={row.medId}
+                      onValueChange={(v) => updateRow(row.rowId, "medId", v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="ওষুধ বেছে নিন" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {medicines.map((m) => (
+                          <SelectItem key={String(m.id)} value={String(m.id)}>
+                            {m.name} ({m.brand}) — স্টক: {String(m.quantity)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {/* Qty — 2 cols */}
+                  <div className="col-span-4 sm:col-span-2">
+                    {i === 0 && <Label className="text-xs">পরিমাণ</Label>}
+                    <Input
+                      type="number"
+                      min="1"
+                      value={row.qty}
+                      onChange={(e) =>
+                        updateRow(row.rowId, "qty", e.target.value)
+                      }
+                    />
+                  </div>
+                  {/* Unit — 2 cols */}
+                  <div className="col-span-4 sm:col-span-2">
+                    {i === 0 && <Label className="text-xs">ইউনিট</Label>}
+                    <Input readOnly value={"—"} className="bg-muted text-sm" />
+                  </div>
+                  {/* Unit price — 2 cols */}
+                  <div className="col-span-4 sm:col-span-2">
+                    {i === 0 && <Label className="text-xs">একক মূল্য</Label>}
+                    <Input
+                      readOnly
+                      value={med ? taka(Number(med.sellingPrice)) : "—"}
+                      className="bg-muted text-sm"
+                    />
+                  </div>
+                  {/* Row total — 2 cols */}
+                  <div className="col-span-5 sm:col-span-2 relative">
+                    {i === 0 && <Label className="text-xs">মোট</Label>}
+                    <Input
+                      readOnly
+                      value={med ? taka(rowTotal) : "—"}
+                      className="bg-muted font-semibold text-sm"
+                    />
+                  </div>
+                  {/* Remove — 1 col */}
+                  <div className="col-span-1 flex justify-end">
+                    {rows.length > 1 && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-red-500 hover:text-red-700 h-9 w-9"
+                        onClick={() => removeRow(row.rowId)}
+                        data-ocid={`sales.delete_button.${i + 1}`}
+                      >
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <div>
-            <Label>একক মূল্য</Label>
-            <Input readOnly value={taka(unitPrice)} className="bg-muted" />
-          </div>
-          <div>
-            <Label>কাস্টমার নাম (ঐচ্ছিক)</Label>
-            <Input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              placeholder="কাস্টমারের নাম"
-            />
-          </div>
-          <div>
-            <Label>মোট</Label>
-            <Input
-              readOnly
-              value={taka(total)}
-              className="bg-muted font-bold"
-            />
-          </div>
-          <div className="flex items-end">
+          <div className="flex items-center justify-between mt-3">
             <Button
-              data-ocid="sales.submit_button"
-              onClick={handleSubmit}
-              disabled={saving}
-              className="w-full"
-              style={{ backgroundColor: "#1F6D63" }}
+              variant="outline"
+              size="sm"
+              onClick={addRow}
+              data-ocid="sales.secondary_button"
             >
-              {saving ? "সংরক্ষণ হচ্ছে..." : "বিক্রয় নিশ্চিত করুন"}
+              + ওষুধ যোগ করুন
             </Button>
+            <div className="text-lg font-bold">
+              মোট: <span style={{ color: "#1F6D63" }}>{taka(grandTotal)}</span>
+            </div>
           </div>
+        </div>
+
+        {/* Payment Status */}
+        <div>
+          <h3 className="text-sm font-medium text-muted-foreground mb-2">
+            পেমেন্ট ধরন
+          </h3>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setPaymentStatus("নগদ")}
+              className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors ${paymentStatus === "নগদ" ? "bg-green-600 text-white border-green-600" : "border-border hover:bg-muted"}`}
+              data-ocid="sales.cash.toggle"
+            >
+              ✓ নগদ
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaymentStatus("বাকি")}
+              className={`flex-1 py-2.5 rounded-lg border text-sm font-medium transition-colors ${paymentStatus === "বাকি" ? "bg-red-600 text-white border-red-600" : "border-border hover:bg-muted"}`}
+              data-ocid="sales.due.toggle"
+            >
+              ⚠ বাকি
+            </button>
+          </div>
+          {paymentStatus === "বাকি" && (
+            <p className="text-xs text-red-600 mt-1">
+              বাকি বিক্রয় স্বয়ংক্রিয়ভাবে বকেয়া খাতায় যুক্ত হবে।
+            </p>
+          )}
+          {paymentStatus === "নগদ" && (
+            <p className="text-xs text-green-600 mt-1">
+              নগদ বিক্রয় স্বয়ংক্রিয়ভাবে আয় খাতায় যুক্ত হবে।
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button
+            data-ocid="sales.submit_button"
+            onClick={handleSubmit}
+            disabled={saving}
+            style={{ backgroundColor: "#1F6D63" }}
+            className="px-8"
+          >
+            {saving ? "সংরক্ষণ হচ্ছে..." : "বিক্রয় নিশ্চিত করুন"}
+          </Button>
         </div>
       </div>
 
       {/* Sales Table */}
       <div className="bg-card rounded-lg shadow-card overflow-auto">
+        <div className="p-4 border-b">
+          <h2 className="font-semibold">বিক্রয় ইতিহাস</h2>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>ইনভয়েস#</TableHead>
+              <TableHead>#</TableHead>
+              <TableHead>কাস্টমার</TableHead>
               <TableHead>ওষুধ</TableHead>
               <TableHead>পরিমাণ</TableHead>
-              <TableHead>একক মূল্য</TableHead>
               <TableHead>মোট</TableHead>
-              <TableHead>কাস্টমার</TableHead>
+              <TableHead>স্ট্যাটাস</TableHead>
               <TableHead>তারিখ</TableHead>
               <TableHead>প্রিন্ট</TableHead>
             </TableRow>
@@ -1598,17 +1870,30 @@ function SalesPage({
               </TableRow>
             )}
             {sortedSales.map((s, i) => (
-              <TableRow key={String(s.id)} data-ocid={`sales.item.${i + 1}`}>
+              <TableRow key={String(s.id)} data-ocid={`sales.row.${i + 1}`}>
                 <TableCell className="font-mono text-xs">
                   {String(s.invoiceNumber).slice(-6)}
                 </TableCell>
+                <TableCell>{s.customerName || "—"}</TableCell>
                 <TableCell>{s.medicineName}</TableCell>
                 <TableCell>{String(s.quantity)}</TableCell>
-                <TableCell>{taka(Number(s.unitPrice))}</TableCell>
                 <TableCell className="font-semibold">
                   {taka(Number(s.totalPrice))}
                 </TableCell>
-                <TableCell>{s.customerName || "—"}</TableCell>
+                <TableCell>
+                  {s.notes === "বাকি" ? (
+                    <Badge variant="destructive" className="text-xs">
+                      বাকি
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="default"
+                      className="text-xs bg-green-600 hover:bg-green-700"
+                    >
+                      নগদ
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>{formatDate(s.date)}</TableCell>
                 <TableCell>
                   <Button
@@ -1627,7 +1912,7 @@ function SalesPage({
       </div>
 
       {/* Print Invoice */}
-      {printSale && (
+      {printSales && printSales.length > 0 && (
         <div className="hidden print:block print-area">
           <div
             style={{
@@ -1649,63 +1934,79 @@ function SalesPage({
               }}
             />
             <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F3A3D" }}>
-              {PHARMACY_NAME}
+              {getPharmacyInfo().name}
             </h1>
-            <p style={{ fontSize: 13 }}>{PHARMACY_ADDRESS}</p>
-            <p style={{ fontSize: 13 }}>ফোন: {PHARMACY_PHONE}</p>
+            <p style={{ fontSize: 13 }}>{getPharmacyInfo().address}</p>
+            <p style={{ fontSize: 13 }}>ফোন: {getPharmacyInfo().phone}</p>
           </div>
           <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
             ইনভয়েস
           </h2>
-          <p>তারিখ: {formatDate(printSale.date)}</p>
-          <p>কাস্টমার: {printSale.customerName || "—"}</p>
+          <p>তারিখ: {formatDate(printSales[0].date)}</p>
+          <p>ইনভয়েস নং: {String(printSales[0].invoiceNumber)}</p>
+          {printSales[0].customerName && (
+            <p>কাস্টমার: {printSales[0].customerName}</p>
+          )}
           <table
             style={{ width: "100%", borderCollapse: "collapse", marginTop: 12 }}
           >
             <thead>
               <tr style={{ borderBottom: "1px solid #ccc" }}>
-                <th style={{ textAlign: "left", padding: 4 }}>ওষুধ</th>
-                <th style={{ textAlign: "right", padding: 4 }}>পরিমাণ</th>
-                <th style={{ textAlign: "right", padding: 4 }}>একক মূল্য</th>
-                <th style={{ textAlign: "right", padding: 4 }}>মোট</th>
+                <th style={{ textAlign: "left", padding: "4px 8px" }}>ওষুধ</th>
+                <th style={{ textAlign: "right", padding: "4px 8px" }}>
+                  পরিমাণ
+                </th>
+                <th style={{ textAlign: "right", padding: "4px 8px" }}>
+                  একক মূল্য
+                </th>
+                <th style={{ textAlign: "right", padding: "4px 8px" }}>মোট</th>
+                <th style={{ textAlign: "right", padding: "4px 8px" }}>
+                  স্ট্যাটাস
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td style={{ padding: 4 }}>
-                  {printSale.medicineName} ({printSale.brand})
-                </td>
-                <td style={{ textAlign: "right", padding: 4 }}>
-                  {String(printSale.quantity)}
-                </td>
-                <td style={{ textAlign: "right", padding: 4 }}>
-                  {taka(Number(printSale.unitPrice))}
-                </td>
-                <td style={{ textAlign: "right", padding: 4 }}>
-                  {taka(Number(printSale.totalPrice))}
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr style={{ borderTop: "2px solid #0F3A3D" }}>
-                <td
-                  colSpan={3}
-                  style={{ textAlign: "right", padding: 4, fontWeight: 700 }}
+              {printSales.map((ps, idx) => (
+                <tr
+                  key={`${ps.medicineName}-${idx}`}
+                  style={{ borderBottom: "1px solid #eee" }}
                 >
-                  মোট বিল:
-                </td>
-                <td style={{ textAlign: "right", padding: 4, fontWeight: 700 }}>
-                  {taka(Number(printSale.totalPrice))}
-                </td>
-              </tr>
-            </tfoot>
+                  <td style={{ padding: "4px 8px" }}>{ps.medicineName}</td>
+                  <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                    {String(ps.quantity)}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                    {taka(Number(ps.unitPrice))}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                    {taka(Number(ps.totalPrice))}
+                  </td>
+                  <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                    {ps.notes === "বাকি" ? "বাকি" : "নগদ"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           </table>
+          <div
+            style={{
+              marginTop: 12,
+              borderTop: "1px solid #ccc",
+              paddingTop: 8,
+              textAlign: "right",
+            }}
+          >
+            <strong>
+              মোট:{" "}
+              {taka(printSales.reduce((s, p) => s + Number(p.totalPrice), 0))}
+            </strong>
+          </div>
           <p
             style={{
-              marginTop: 24,
-              fontSize: 12,
               textAlign: "center",
-              color: "#666",
+              marginTop: 24,
+              fontSize: 11,
+              color: "#888",
             }}
           >
             ধন্যবাদ আপনাকে!
@@ -1729,50 +2030,124 @@ function PurchasesPage({
   onRefresh: () => void;
   actor: backendInterface | null;
 }) {
-  const [medId, setMedId] = useState("");
+  const [medicineName, setMedicineName] = useState("");
+  const [strength, setStrength] = useState("");
+  const [brand, setBrand] = useState("");
+  const [itemType, setItemType] = useState("Tablet");
   const [qty, setQty] = useState("1");
-  const [unitPrice, setUnitPrice] = useState("");
-  const [supplierName, setSupplierName] = useState("");
+  const [qtyUnit, setQtyUnit] = useState("Piece");
+  const [costPrice, setCostPrice] = useState("");
+  const [sellingPrice, setSellingPrice] = useState("");
+  const [supplier, setSupplier] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [minStockAlert, setMinStockAlert] = useState("10");
   const [saving, setSaving] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [units, setUnits] = useState<string[]>(getQtyUnits());
+  const [newUnit, setNewUnit] = useState("");
 
-  const selectedMed = medicines.find((m) => String(m.id) === medId);
-  const total =
-    (Number.parseFloat(unitPrice) || 0) * (Number.parseInt(qty) || 0);
+  const suggestions =
+    medicineName.trim().length > 0
+      ? medicines
+          .filter((m) =>
+            m.name.toLowerCase().includes(medicineName.trim().toLowerCase()),
+          )
+          .slice(0, 8)
+      : [];
+
+  function selectSuggestion(m: MedicineRecord) {
+    setMedicineName(m.name);
+    setStrength("");
+    setBrand(m.brand);
+    setItemType(m.itemType);
+    setSellingPrice(String(Number(m.sellingPrice)));
+    setCostPrice(String(Number(m.purchasePrice)));
+    setShowSuggestions(false);
+  }
+
+  function addUnit() {
+    const v = newUnit.trim();
+    if (!v) return;
+    saveQtyUnit(v);
+    setUnits(getQtyUnits());
+    setQtyUnit(v);
+    setNewUnit("");
+  }
 
   async function handleSubmit() {
-    if (!medId) {
-      toast.error("ওষুধ বেছে নিন");
+    if (!medicineName.trim()) {
+      toast.error("ওষুধের নাম দিন");
       return;
     }
     if (!qty || Number.parseInt(qty) <= 0) {
       toast.error("পরিমাণ দিন");
       return;
     }
-    if (!selectedMed) return;
     setSaving(true);
     try {
-      const record: PurchaseRecord = {
+      const qtyNum = Number.parseInt(qty) || 0;
+      const cost = Math.round(Number.parseFloat(costPrice) || 0);
+      const sell = Math.round(Number.parseFloat(sellingPrice) || 0);
+      const minAlert = Math.round(Number.parseFloat(minStockAlert) || 10);
+
+      const existing = medicines.find(
+        (m) => m.name.toLowerCase() === medicineName.trim().toLowerCase(),
+      );
+
+      let medicineId = BigInt(0);
+      if (existing) {
+        medicineId = existing.id;
+        const updated: MedicineRecord = {
+          ...existing,
+          quantity: existing.quantity + BigInt(qtyNum),
+          purchasePrice: BigInt(cost),
+          sellingPrice: BigInt(sell),
+          expiryDate: expiryDate
+            ? dateStringToNano(expiryDate)
+            : existing.expiryDate,
+          minStockAlert: BigInt(minAlert),
+        };
+        await actor?.updateMedicine(existing.id, updated);
+      } else {
+        const newMed: MedicineRecord = {
+          id: BigInt(0),
+          name: medicineName.trim(),
+          brand: brand.trim(),
+          itemType,
+          purchasePrice: BigInt(cost),
+          sellingPrice: BigInt(sell),
+          quantity: BigInt(qtyNum),
+          minStockAlert: BigInt(minAlert),
+          expiryDate: expiryDate ? dateStringToNano(expiryDate) : BigInt(0),
+          createdAt: nowNano(),
+        };
+        await actor?.addMedicine(newMed);
+      }
+
+      const purchase: PurchaseRecord = {
         id: BigInt(0),
-        medicineId: selectedMed.id,
-        medicineName: selectedMed.name,
-        quantity: BigInt(Number.parseInt(qty)),
-        unitPrice: BigInt(Math.round(Number.parseFloat(unitPrice) || 0)),
-        totalPrice: BigInt(Math.round(total)),
-        supplierName: supplierName.trim(),
+        medicineId,
+        medicineName: medicineName.trim(),
+        quantity: BigInt(qtyNum),
+        unitPrice: BigInt(cost),
+        totalPrice: BigInt(qtyNum * cost),
+        supplierName: supplier.trim(),
         date: nowNano(),
       };
-      await actor?.createPurchase(record);
-      // Update stock
-      const updated: MedicineRecord = {
-        ...selectedMed,
-        quantity: selectedMed.quantity + BigInt(Number.parseInt(qty)),
-      };
-      await actor?.updateMedicine(selectedMed.id, updated);
-      toast.success("ক্রয় সম্পন্ন হয়েছে");
-      setMedId("");
+      await actor?.createPurchase(purchase);
+
+      toast.success("ক্রয় সম্পন্ন — স্টকে যোগ হয়েছে");
+      setMedicineName("");
+      setStrength("");
+      setBrand("");
+      setItemType("Tablet");
       setQty("1");
-      setUnitPrice("");
-      setSupplierName("");
+      setQtyUnit("Piece");
+      setCostPrice("");
+      setSellingPrice("");
+      setSupplier("");
+      setExpiryDate("");
+      setMinStockAlert("10");
       onRefresh();
     } catch (e) {
       toast.error(`ত্রুটি: ${String(e)}`);
@@ -1790,79 +2165,199 @@ function PurchasesPage({
       <h1 className="text-2xl font-bold">ক্রয়</h1>
 
       <div className="bg-card rounded-lg shadow-card p-5">
-        <h2 className="font-semibold mb-4">নতুন ক্রয়</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="lg:col-span-2">
-            <Label>ওষুধ বেছে নিন</Label>
-            <Select value={medId} onValueChange={setMedId}>
+        <h2 className="font-semibold mb-4">নতুন ক্রয় এন্ট্রি</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Medicine name with autocomplete */}
+          <div className="relative lg:col-span-2">
+            <Label>ঔষধের নাম *</Label>
+            <Input
+              data-ocid="purchases.input"
+              value={medicineName}
+              onChange={(e) => {
+                setMedicineName(e.target.value);
+                setShowSuggestions(true);
+              }}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onFocus={() => setShowSuggestions(true)}
+              placeholder="ঔষধের নাম লিখুন..."
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
+                {suggestions.map((m) => (
+                  <button
+                    key={String(m.id)}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                    onMouseDown={() => selectSuggestion(m)}
+                  >
+                    <span className="font-medium">{m.name}</span>
+                    <span className="text-muted-foreground ml-2">
+                      ({m.brand})
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label>Strength/Size</Label>
+            <Input
+              value={strength}
+              onChange={(e) => setStrength(e.target.value)}
+              placeholder="যেমন: 500mg, 100ml"
+            />
+          </div>
+
+          <div>
+            <Label>ব্র্যান্ড</Label>
+            <Input
+              value={brand}
+              onChange={(e) => setBrand(e.target.value)}
+              placeholder="কোম্পানির নাম"
+            />
+          </div>
+
+          <div>
+            <Label>ধরন</Label>
+            <Select value={itemType} onValueChange={setItemType}>
               <SelectTrigger data-ocid="purchases.select">
-                <SelectValue placeholder="ওষুধ নির্বাচন করুন" />
+                <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {medicines.map((m) => (
-                  <SelectItem key={String(m.id)} value={String(m.id)}>
-                    {m.name} ({m.brand})
+                {[
+                  "Tablet",
+                  "Syrup",
+                  "Capsule",
+                  "Injection",
+                  "Cream",
+                  "Drop",
+                  "Powder",
+                  "Inhaler",
+                  "Suppository",
+                ].map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
+
           <div>
-            <Label>পরিমাণ</Label>
+            <Label>পরিমাণ ও ইউনিট</Label>
+            <div className="flex gap-2">
+              <Input
+                type="number"
+                min="1"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                className="w-24"
+              />
+              <Select value={qtyUnit} onValueChange={setQtyUnit}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {units.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                  <div className="flex gap-1 p-2 border-t">
+                    <input
+                      className="flex-1 text-sm border rounded px-2 py-1"
+                      placeholder="নতুন ইউনিট"
+                      value={newUnit}
+                      onChange={(e) => setNewUnit(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addUnit()}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs bg-primary text-primary-foreground px-2 rounded"
+                      onClick={addUnit}
+                    >
+                      +
+                    </button>
+                  </div>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div>
+            <Label>ক্রয়মূল্য / Cost Price (৳)</Label>
             <Input
-              data-ocid="purchases.input"
               type="number"
-              min="1"
-              value={qty}
-              onChange={(e) => setQty(e.target.value)}
+              value={costPrice}
+              onChange={(e) => setCostPrice(e.target.value)}
+              placeholder="০"
             />
           </div>
+
           <div>
-            <Label>একক ক্রয়মূল্য (৳)</Label>
+            <Label>বিক্রয়মূল্য / Selling Price (৳)</Label>
             <Input
               type="number"
-              value={unitPrice}
-              onChange={(e) => setUnitPrice(e.target.value)}
+              value={sellingPrice}
+              onChange={(e) => setSellingPrice(e.target.value)}
+              placeholder="০"
             />
           </div>
+
           <div>
-            <Label>সরবরাহকারী</Label>
+            <Label>Supplier নাম</Label>
             <Input
-              value={supplierName}
-              onChange={(e) => setSupplierName(e.target.value)}
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
               placeholder="সরবরাহকারীর নাম"
             />
           </div>
+
           <div>
-            <Label>মোট</Label>
+            <Label>মেয়াদ উত্তীর্ণ তারিখ</Label>
             <Input
-              readOnly
-              value={taka(total)}
-              className="bg-muted font-bold"
+              type="date"
+              value={expiryDate}
+              onChange={(e) => setExpiryDate(e.target.value)}
             />
           </div>
-          <div className="flex items-end">
+
+          <div>
+            <Label>সর্বনিম্ন স্টক সতর্কতা</Label>
+            <Input
+              type="number"
+              min="0"
+              value={minStockAlert}
+              onChange={(e) => setMinStockAlert(e.target.value)}
+            />
+          </div>
+
+          <div className="lg:col-span-3 flex justify-end pt-2">
             <Button
               data-ocid="purchases.submit_button"
               onClick={handleSubmit}
               disabled={saving}
-              className="w-full"
               style={{ backgroundColor: "#1F6D63" }}
+              className="px-8"
             >
-              {saving ? "সংরক্ষণ হচ্ছে..." : "ক্রয় নিশ্চিত করুন"}
+              {saving ? "সংরক্ষণ হচ্ছে..." : "ক্রয় নিশ্চিত করুন — স্টকে যোগ করুন"}
             </Button>
           </div>
         </div>
       </div>
 
       <div className="bg-card rounded-lg shadow-card overflow-auto">
+        <div className="p-4 border-b">
+          <h2 className="font-semibold">ক্রয় ইতিহাস</h2>
+        </div>
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>#</TableHead>
-              <TableHead>ওষুধ</TableHead>
+              <TableHead>ঔষধ</TableHead>
               <TableHead>পরিমাণ</TableHead>
-              <TableHead>একক মূল্য</TableHead>
+              <TableHead>ক্রয়মূল্য</TableHead>
               <TableHead>মোট</TableHead>
               <TableHead>সরবরাহকারী</TableHead>
               <TableHead>তারিখ</TableHead>
@@ -1903,25 +2398,7 @@ function PurchasesPage({
   );
 }
 
-// ─── Due Records Page ────────────────────────────────────────────────────────
-
-type DueLineItem = {
-  id: string;
-  itemType: string;
-  medicineId: string;
-  quantity: string;
-  quantityUnit: string;
-};
-
-type DueForm = {
-  village: string;
-  neighborhood: string;
-  customerName: string;
-  fatherName: string;
-  mobile: string;
-  lineItems: DueLineItem[];
-  status: string;
-};
+// ─── Due Records Page (Ledger) ────────────────────────────────────────────────
 
 type DueGroup = {
   key: string;
@@ -1978,26 +2455,8 @@ function groupDueRecords(records: DueRecord[]): DueGroup[] {
   return Array.from(map.values()).sort((a, b) => Number(b.date - a.date));
 }
 
-const emptyLineItem = (): DueLineItem => ({
-  id: Math.random().toString(36).slice(2),
-  itemType: "ট্যাবলেট",
-  medicineId: "",
-  quantity: "1",
-  quantityUnit: "Piece",
-});
-
-const emptyDueForm = (): DueForm => ({
-  village: "বালিগাঁও",
-  neighborhood: "",
-  customerName: "",
-  fatherName: "",
-  mobile: "",
-  lineItems: [emptyLineItem()],
-  status: "Due",
-});
-
-function DuePage({
-  medicines,
+function DueKhataPage({
+  medicines: _medicines,
   dueRecords,
   onRefresh,
   actor,
@@ -2007,149 +2466,118 @@ function DuePage({
   onRefresh: () => void;
   actor: backendInterface | null;
 }) {
-  const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<DueForm>(emptyDueForm());
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [villageFilter, setVillageFilter] = useState("all");
-  const [neighborhoodFilter, setNeighborhoodFilter] = useState("all");
-  const [saving, setSaving] = useState(false);
-  const [itemTypes, setItemTypes] = useState<string[]>(getItemTypes());
-  const [newTypeInput, setNewTypeInput] = useState("");
-  const [showNewTypeInput, setShowNewTypeInput] = useState(false);
-  const [dueQtyUnits, setDueQtyUnits] = useState<string[]>(getQtyUnits());
-  const [showUnitMgr, setShowUnitMgr] = useState(false);
-  const [newUnitInput, setNewUnitInput] = useState("");
-  const [editingUnit, setEditingUnit] = useState<string | null>(null);
-  const [editUnitVal, setEditUnitVal] = useState("");
+  // Only show Due status records
+  const duePending = dueRecords.filter((r) => r.status === "Due");
 
-  const neighborhoods = VILLAGES[form.village] || [];
+  const [selectedVillages, setSelectedVillages] = useState<Set<string>>(
+    new Set(Object.keys(VILLAGES)),
+  );
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<
+    Set<string>
+  >(new Set(Object.values(VILLAGES).flat()));
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [cashPaidMap, setCashPaidMap] = useState<Record<string, number>>(() => {
+    return JSON.parse(localStorage.getItem("pharma_customer_cashpaid") || "{}");
+  });
+  const [editingCashKey, setEditingCashKey] = useState<string | null>(null);
+  const [cashInputVal, setCashInputVal] = useState("");
+  const [printMode, setPrintMode] = useState<"village" | "customer" | null>(
+    null,
+  );
+  const [printCustomerKey, setPrintCustomerKey] = useState<string | null>(null);
 
-  // Filter neighborhoods for filter bar
-  const filterNeighborhoods =
-    villageFilter !== "all" ? VILLAGES[villageFilter] || [] : [];
+  // Group all due pending records
+  const allGroups = groupDueRecords(duePending);
 
-  const groups = groupDueRecords(dueRecords);
-
-  const filteredGroups = groups.filter((g) => {
-    if (villageFilter !== "all" && g.village !== villageFilter) return false;
-    if (neighborhoodFilter !== "all" && g.neighborhood !== neighborhoodFilter)
+  // Filter groups
+  const filteredGroups = allGroups.filter((g) => {
+    if (selectedVillages.size > 0 && !selectedVillages.has(g.village))
       return false;
-    if (statusFilter === "Due" && g.status !== "Due") return false;
-    if (statusFilter === "Paid" && g.status !== "Paid") return false;
+    if (
+      selectedNeighborhoods.size > 0 &&
+      !selectedNeighborhoods.has(g.neighborhood)
+    )
+      return false;
+    if (
+      searchQuery &&
+      !g.customerName.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+      return false;
     return true;
   });
 
-  function updateLineItem(idx: number, patch: Partial<DueLineItem>) {
-    setForm((prev) => {
-      const lineItems = prev.lineItems.map((li, i) => {
-        if (i !== idx) return li;
-        const updated = { ...li, ...patch };
-        // reset medicine if itemType changed
-        if (patch.itemType && patch.itemType !== li.itemType) {
-          updated.medicineId = "";
-        }
-        return updated;
-      });
-      return { ...prev, lineItems };
+  // Suggestions from filtered groups
+  const suggestions = searchQuery
+    ? Array.from(new Set(allGroups.map((g) => g.customerName)))
+        .filter((n) => n.toLowerCase().includes(searchQuery.toLowerCase()))
+        .slice(0, 8)
+    : [];
+
+  function toggleVillage(v: string) {
+    setSelectedVillages((prev) => {
+      const next = new Set(prev);
+      if (next.has(v)) {
+        next.delete(v);
+        // also deselect all its neighborhoods
+        const paras = VILLAGES[v] || [];
+        setSelectedNeighborhoods((pn) => {
+          const nn = new Set(pn);
+          for (const p of paras) nn.delete(p);
+          return nn;
+        });
+      } else {
+        next.add(v);
+        // select all its neighborhoods
+        const paras = VILLAGES[v] || [];
+        setSelectedNeighborhoods((pn) => {
+          const nn = new Set(pn);
+          for (const p of paras) nn.add(p);
+          return nn;
+        });
+      }
+      return next;
     });
   }
 
-  function addLineItem() {
-    setForm((prev) => ({
-      ...prev,
-      lineItems: [...prev.lineItems, emptyLineItem()],
-    }));
+  function toggleNeighborhood(para: string) {
+    setSelectedNeighborhoods((prev) => {
+      const next = new Set(prev);
+      if (next.has(para)) next.delete(para);
+      else next.add(para);
+      return next;
+    });
   }
 
-  function removeLineItem(idx: number) {
-    setForm((prev) => ({
-      ...prev,
-      lineItems: prev.lineItems.filter((_, i) => i !== idx),
-    }));
+  function selectAll() {
+    setSelectedVillages(new Set(Object.keys(VILLAGES)));
+    setSelectedNeighborhoods(new Set(Object.values(VILLAGES).flat()));
   }
 
-  function handleAddCustomType() {
-    const t = newTypeInput.trim();
-    if (!t) return;
-    addCustomItemType(t);
-    const updated = getItemTypes();
-    setItemTypes(updated);
-    setNewTypeInput("");
-    setShowNewTypeInput(false);
-    toast.success(`"${t}" যুক্ত হয়েছে`);
+  function deselectAll() {
+    setSelectedVillages(new Set());
+    setSelectedNeighborhoods(new Set());
   }
 
-  function handleAddDueUnit() {
-    const v = newUnitInput.trim();
-    if (!v) return;
-    saveQtyUnit(v);
-    setDueQtyUnits(getQtyUnits());
-    setNewUnitInput("");
-    toast.success(`"${v}" যুক্ত হয়েছে`);
-  }
-  function handleDeleteDueUnit(u: string) {
-    deleteQtyUnit(u);
-    setDueQtyUnits(getQtyUnits());
-  }
-  function handleEditDueUnit() {
-    if (!editingUnit || !editUnitVal.trim()) return;
-    editQtyUnit(editingUnit, editUnitVal.trim());
-    setDueQtyUnits(getQtyUnits());
-    setEditingUnit(null);
-    setEditUnitVal("");
+  function getCashPaid(
+    customerName: string,
+    village: string,
+    neighborhood: string,
+  ): number {
+    const key = `${customerName}|${village}|${neighborhood}`;
+    return cashPaidMap[key] || 0;
   }
 
-  async function handleSave() {
-    if (!form.customerName.trim()) {
-      toast.error("কাস্টমারের নাম দিন");
-      return;
-    }
-    const validItems = form.lineItems.filter((li) => li.medicineId);
-    if (validItems.length === 0) {
-      toast.error("অন্তত একটি ওষুধ বেছে নিন");
-      return;
-    }
-    setSaving(true);
-    try {
-      const timestamp = nowNano();
-      for (const item of validItems) {
-        const med = medicines.find((m) => String(m.id) === item.medicineId);
-        if (!med) continue;
-        const qty = Number.parseInt(item.quantity) || 1;
-        const record: DueRecord = {
-          id: BigInt(0),
-          village: form.village,
-          neighborhood: form.neighborhood,
-          customerName: form.customerName.trim(),
-          fatherName: form.fatherName.trim(),
-          mobile: form.mobile.trim(),
-          itemType: item.itemType,
-          medicineId: med.id,
-          medicineName: med.name,
-          quantity: BigInt(qty),
-          unitPrice: med.sellingPrice,
-          totalPrice: BigInt(Number(med.sellingPrice) * qty),
-          status: form.status || "Due",
-          date: timestamp,
-        };
-        await actor?.addDueRecord(record);
-        // Store unit in localStorage for display
-        const unitMap = JSON.parse(
-          localStorage.getItem("pharma_due_units") || "{}",
-        );
-        unitMap[`${String(timestamp)}_${med.name}`] =
-          item.quantityUnit || "Piece";
-        localStorage.setItem("pharma_due_units", JSON.stringify(unitMap));
-      }
-      toast.success("বকেয়া যোগ হয়েছে");
-      setOpen(false);
-      setForm(emptyDueForm());
-      onRefresh();
-    } catch (e) {
-      toast.error(`ত্রুটি: ${String(e)}`);
-    } finally {
-      setSaving(false);
-    }
+  function saveCashPaid(
+    customerName: string,
+    village: string,
+    neighborhood: string,
+    amount: number,
+  ) {
+    const key = `${customerName}|${village}|${neighborhood}`;
+    const updated = { ...cashPaidMap, [key]: amount };
+    setCashPaidMap(updated);
+    localStorage.setItem("pharma_customer_cashpaid", JSON.stringify(updated));
   }
 
   async function handleMarkGroupPaid(group: DueGroup) {
@@ -2157,112 +2585,177 @@ function DuePage({
       for (const item of group.items) {
         if (item.status === "Due") await actor?.markDueAsPaid(item.id);
       }
-      toast.success("পরিশোধ হিসেবে চিহ্নিত");
+      // Clear cash paid for this customer
+      const key = `${group.customerName}|${group.village}|${group.neighborhood}`;
+      const updated = { ...cashPaidMap };
+      delete updated[key];
+      setCashPaidMap(updated);
+      localStorage.setItem("pharma_customer_cashpaid", JSON.stringify(updated));
+      toast.success("পরিশোধ হিসেবে চিহ্নিত হয়েছে");
       onRefresh();
     } catch (e) {
       toast.error(`ত্রুটি: ${String(e)}`);
     }
   }
 
+  function handlePrintVillage() {
+    setPrintMode("village");
+    setPrintCustomerKey(null);
+    setTimeout(() => window.print(), 300);
+  }
+
+  function handlePrintCustomer(group: DueGroup) {
+    setPrintMode("customer");
+    setPrintCustomerKey(group.key);
+    setTimeout(() => window.print(), 300);
+  }
+
+  const printCustomerGroup = printCustomerKey
+    ? filteredGroups.find((g) => g.key === printCustomerKey) || null
+    : null;
+
+  const totalDue = filteredGroups.reduce((sum, g) => {
+    const cashPaid = getCashPaid(g.customerName, g.village, g.neighborhood);
+    return sum + Math.max(0, g.totalPrice - cashPaid);
+  }, 0);
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">বকেয়া লিস্ট</h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-bold">বকেয়া খাতা</h1>
+          <p className="text-sm text-muted-foreground">
+            শুধুমাত্র বাকি বিক্রয়ের স্বয়ংক্রিয় তালিকা
+          </p>
+        </div>
         <Button
-          data-ocid="due.add_button"
-          onClick={() => {
-            setForm(emptyDueForm());
-            setItemTypes(getItemTypes());
-            setOpen(true);
-          }}
-          style={{ backgroundColor: "#1F6D63" }}
+          onClick={handlePrintVillage}
+          variant="outline"
+          className="gap-2"
+          data-ocid="due.village.print.button"
         >
-          <Plus size={16} className="mr-1" /> নতুন বকেয়া
+          <Printer size={16} /> গ্রামভিত্তিক PDF
         </Button>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground font-medium">গ্রাম</span>
-          <Select
-            value={villageFilter}
-            onValueChange={(v) => {
-              setVillageFilter(v);
-              setNeighborhoodFilter("all");
-            }}
-          >
-            <SelectTrigger className="w-36" data-ocid="due.village.select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">সব গ্রাম</SelectItem>
-              {Object.keys(VILLAGES).map((v) => (
-                <SelectItem key={v} value={v}>
-                  {v}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {/* Village/Para Filter */}
+      <div className="bg-card rounded-lg shadow-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-semibold text-sm">গ্রাম ও পাড়া ফিল্টার</span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={selectAll}
+              data-ocid="due.filter.select_all.button"
+            >
+              সব নির্বাচন
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={deselectAll}
+              data-ocid="due.filter.deselect.button"
+            >
+              বাতিল
+            </Button>
+          </div>
         </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground font-medium">পাড়া</span>
-          <Select
-            value={neighborhoodFilter}
-            onValueChange={setNeighborhoodFilter}
-            disabled={villageFilter === "all"}
-          >
-            <SelectTrigger className="w-44" data-ocid="due.neighborhood.select">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">সব পাড়া</SelectItem>
-              {filterNeighborhoods.map((n) => (
-                <SelectItem key={n} value={n}>
-                  {n}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <span className="text-xs text-muted-foreground font-medium">
-            স্ট্যাটাস
-          </span>
-          <Tabs value={statusFilter} onValueChange={setStatusFilter}>
-            <TabsList>
-              <TabsTrigger value="all" data-ocid="due.all.tab">
-                সব
-              </TabsTrigger>
-              <TabsTrigger value="Due" data-ocid="due.pending.tab">
-                বকেয়া
-              </TabsTrigger>
-              <TabsTrigger value="Paid" data-ocid="due.paid.tab">
-                পরিশোধিত
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-        <div className="ml-auto text-sm text-muted-foreground self-end pb-1">
-          মোট:{" "}
-          <span className="font-bold text-foreground">
-            {filteredGroups.length}
-          </span>{" "}
-          গ্রাহক
+        <div className="flex flex-wrap gap-4">
+          {Object.entries(VILLAGES).map(([village, paras]) => (
+            <div key={village} className="flex flex-col gap-1">
+              <label className="flex items-center gap-2 cursor-pointer font-medium text-sm">
+                <input
+                  type="checkbox"
+                  checked={selectedVillages.has(village)}
+                  onChange={() => toggleVillage(village)}
+                  className="w-4 h-4 accent-primary"
+                  data-ocid={"due.village.checkbox"}
+                />
+                {village}
+              </label>
+              {selectedVillages.has(village) && (
+                <div className="ml-5 flex flex-col gap-1">
+                  {paras.map((para) => (
+                    <label
+                      key={para}
+                      className="flex items-center gap-2 cursor-pointer text-sm text-muted-foreground"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedNeighborhoods.has(para)}
+                        onChange={() => toggleNeighborhood(para)}
+                        className="w-3.5 h-3.5 accent-primary"
+                        data-ocid={"due.neighborhood.checkbox"}
+                      />
+                      {para}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
+      {/* Search */}
+      <div className="relative">
+        <Input
+          placeholder="গ্রাহকের নাম খুঁজুন..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setShowSuggestions(true);
+          }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+          data-ocid="due.search_input"
+          className="w-full"
+        />
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute top-full left-0 right-0 z-20 bg-popover border rounded-md shadow-md mt-1 max-h-48 overflow-y-auto">
+            {suggestions.map((name) => (
+              <button
+                key={name}
+                type="button"
+                className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                onMouseDown={() => {
+                  setSearchQuery(name);
+                  setShowSuggestions(false);
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Summary strip */}
+      <div className="flex gap-4 flex-wrap">
+        <div className="bg-card rounded-lg shadow-card px-4 py-2 flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">মোট গ্রাহক:</span>
+          <span className="font-bold">{filteredGroups.length}</span>
+        </div>
+        <div className="bg-card rounded-lg shadow-card px-4 py-2 flex items-center gap-2">
+          <span className="text-muted-foreground text-sm">মোট বকেয়া:</span>
+          <span className="font-bold text-destructive">{taka(totalDue)}</span>
+        </div>
+      </div>
+
+      {/* Table */}
       <div className="bg-card rounded-lg shadow-card overflow-auto">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead>#</TableHead>
               <TableHead>গ্রাম / পাড়া</TableHead>
-              <TableHead>কাস্টমার নাম / পিতা</TableHead>
+              <TableHead>গ্রাহক নাম / পিতা</TableHead>
               <TableHead>মোবাইল</TableHead>
               <TableHead>আইটেম ও পরিমাণ</TableHead>
-              <TableHead>মোট দাম</TableHead>
-              <TableHead>স্ট্যাটাস</TableHead>
+              <TableHead className="text-right">মোট বিল</TableHead>
+              <TableHead className="text-right">নগদ পরিশোধ</TableHead>
+              <TableHead className="text-right">বাকি</TableHead>
               <TableHead>অ্যাকশন</TableHead>
             </TableRow>
           </TableHeader>
@@ -2270,7 +2763,7 @@ function DuePage({
             {filteredGroups.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={8}
+                  colSpan={9}
                   className="text-center text-muted-foreground py-8"
                   data-ocid="due.empty_state"
                 >
@@ -2278,507 +2771,387 @@ function DuePage({
                 </TableCell>
               </TableRow>
             )}
-            {filteredGroups.map((g, i) => (
-              <TableRow key={g.key} data-ocid={`due.item.${i + 1}`}>
-                <TableCell>{i + 1}</TableCell>
-                <TableCell>
-                  <div className="font-medium">{g.village}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {g.neighborhood}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="font-medium">{g.customerName}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {g.fatherName}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {g.mobile ? (
-                    <a
-                      href={`tel:${g.mobile}`}
-                      className="flex items-center gap-1 text-primary hover:underline"
-                    >
-                      <Phone size={12} /> {g.mobile}
-                    </a>
-                  ) : (
-                    "—"
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="space-y-0.5">
-                    {g.items.map((it, j) => (
-                      <div key={String(it.id) + String(j)} className="text-sm">
-                        <span className="font-medium">{it.medicineName}</span>
-                        <span className="text-muted-foreground text-xs ml-1">
-                          ({String(it.quantity)}{" "}
-                          {getDueUnit(g.date, it.medicineName) || "টি"})
-                        </span>
+            {filteredGroups.map((g, i) => {
+              const cashPaid = getCashPaid(
+                g.customerName,
+                g.village,
+                g.neighborhood,
+              );
+              const baki = Math.max(0, g.totalPrice - cashPaid);
+              const custKey = `${g.customerName}|${g.village}|${g.neighborhood}`;
+              return (
+                <TableRow key={g.key} data-ocid={`due.item.${i + 1}`}>
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell>
+                    <div className="font-medium">{g.village}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {g.neighborhood}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="font-medium">{g.customerName}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {g.fatherName}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {g.mobile ? (
+                      <a
+                        href={`tel:${g.mobile}`}
+                        className="flex items-center gap-1 text-primary hover:underline"
+                      >
+                        <Phone size={12} /> {g.mobile}
+                      </a>
+                    ) : (
+                      "—"
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="space-y-0.5">
+                      {g.items.map((it, j) => (
+                        <div
+                          key={String(it.id) + String(j)}
+                          className="text-sm"
+                        >
+                          <span className="font-medium">{it.medicineName}</span>
+                          <span className="text-muted-foreground text-xs ml-1">
+                            ({String(it.quantity)}{" "}
+                            {getDueUnit(g.date, it.medicineName) || "টি"})
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-semibold">
+                    {taka(g.totalPrice)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {editingCashKey === custKey ? (
+                      <div className="flex gap-1 items-center justify-end">
+                        <Input
+                          type="number"
+                          min="0"
+                          className="h-7 w-24 text-sm text-right"
+                          value={cashInputVal}
+                          onChange={(e) => setCashInputVal(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              saveCashPaid(
+                                g.customerName,
+                                g.village,
+                                g.neighborhood,
+                                Number(cashInputVal) || 0,
+                              );
+                              setEditingCashKey(null);
+                            }
+                            if (e.key === "Escape") setEditingCashKey(null);
+                          }}
+                          autoFocus
+                          data-ocid={`due.cash.input.${i + 1}`}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => {
+                            saveCashPaid(
+                              g.customerName,
+                              g.village,
+                              g.neighborhood,
+                              Number(cashInputVal) || 0,
+                            );
+                            setEditingCashKey(null);
+                          }}
+                          data-ocid={`due.cash.save_button.${i + 1}`}
+                        >
+                          ✓
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell className="font-semibold">
-                  {taka(g.totalPrice)}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={g.status === "Paid" ? "default" : "destructive"}
-                    className={g.status === "Paid" ? "bg-green-600" : ""}
-                  >
-                    {g.status === "Paid" ? "পরিশোধিত" : "বকেয়া"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {g.status === "Due" && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-green-700 hover:bg-green-50"
-                      data-ocid={`due.confirm_button.${i + 1}`}
-                      onClick={() => handleMarkGroupPaid(g)}
-                    >
-                      <CheckCircle size={14} className="mr-1" /> পরিশোধ
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
+                    ) : (
+                      <div className="flex items-center gap-1 justify-end">
+                        <span className="text-green-700 dark:text-green-400">
+                          {taka(cashPaid)}
+                        </span>
+                        <button
+                          type="button"
+                          className="text-muted-foreground hover:text-foreground ml-1"
+                          title="নগদ আপডেট"
+                          onClick={() => {
+                            setEditingCashKey(custKey);
+                            setCashInputVal(String(cashPaid));
+                          }}
+                          data-ocid={`due.cash.edit_button.${i + 1}`}
+                        >
+                          <Pencil size={12} />
+                        </button>
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right font-bold text-destructive">
+                    {taka(baki)}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-700 hover:bg-green-50 dark:hover:bg-green-950 text-xs px-2"
+                        onClick={() => handleMarkGroupPaid(g)}
+                        data-ocid={`due.confirm_button.${i + 1}`}
+                      >
+                        <CheckCircle size={12} className="mr-1" /> পরিশোধ
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs px-2"
+                        onClick={() => handlePrintCustomer(g)}
+                        data-ocid={`due.print_button.${i + 1}`}
+                      >
+                        <Printer size={12} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
 
-      {/* Add Due Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl" data-ocid="due.dialog">
-          <DialogHeader>
-            <DialogTitle>নতুন বকেয়া যোগ</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-            {/* Customer info */}
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>গ্রাম</Label>
-                <Select
-                  value={form.village}
-                  onValueChange={(v) =>
-                    setForm((p) => ({ ...p, village: v, neighborhood: "" }))
-                  }
-                >
-                  <SelectTrigger data-ocid="due.form.village.select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(VILLAGES).map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {v}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>পাড়া</Label>
-                <Select
-                  value={form.neighborhood}
-                  onValueChange={(v) =>
-                    setForm((p) => ({ ...p, neighborhood: v }))
-                  }
-                >
-                  <SelectTrigger data-ocid="due.form.neighborhood.select">
-                    <SelectValue placeholder="পাড়া বেছে নিন" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {neighborhoods.map((n) => (
-                      <SelectItem key={n} value={n}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>কাস্টমার নাম</Label>
-                <Input
-                  placeholder="নাম লিখুন"
-                  value={form.customerName}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, customerName: e.target.value }))
-                  }
-                  data-ocid="due.customer_name.input"
-                />
-              </div>
-              <div>
-                <Label>পিতার নাম</Label>
-                <Input
-                  placeholder="পিতার নাম"
-                  value={form.fatherName}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, fatherName: e.target.value }))
-                  }
-                  data-ocid="due.father_name.input"
-                />
-              </div>
-              <div className="col-span-2">
-                <Label>মোবাইল নম্বর</Label>
-                <Input
-                  placeholder="01XXXXXXXXX"
-                  value={form.mobile}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, mobile: e.target.value }))
-                  }
-                  data-ocid="due.mobile.input"
-                />
-              </div>
-            </div>
-
-            {/* Line items */}
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label className="text-sm font-semibold">ওষুধ তালিকা</Label>
-                <div className="flex items-center gap-2">
-                  {!showNewTypeInput ? (
-                    <button
-                      type="button"
-                      className="text-xs text-primary underline"
-                      onClick={() => setShowNewTypeInput(true)}
+      {/* Village-level Print Area */}
+      {printMode === "village" && (
+        <div className="hidden print:block">
+          <div
+            style={{
+              textAlign: "center",
+              borderBottom: "2px solid #0F3A3D",
+              paddingBottom: 12,
+              marginBottom: 12,
+            }}
+          >
+            <img
+              src="/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg"
+              alt="লোগো"
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                objectFit: "cover",
+                margin: "0 auto 8px",
+              }}
+            />
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F3A3D" }}>
+              {getPharmacyInfo().name}
+            </h1>
+            <p style={{ fontSize: 13 }}>{getPharmacyInfo().address}</p>
+            <p style={{ fontSize: 13 }}>ফোন: {getPharmacyInfo().phone}</p>
+          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 4 }}>
+            বকেয়া তালিকা
+          </h2>
+          <p style={{ fontSize: 12, marginBottom: 12, color: "#555" }}>
+            তারিখ: {new Date().toLocaleDateString("bn-BD")}
+          </p>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "2px solid #333" }}>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>#</th>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>
+                  গ্রাহকের নাম
+                </th>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>
+                  মোবাইল নম্বর
+                </th>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>গ্রাম</th>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>পাড়া</th>
+                <th style={{ padding: "6px 8px", textAlign: "right" }}>
+                  মোট বকেয়া বিল
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredGroups.map((g, i) => {
+                const cashPaid = getCashPaid(
+                  g.customerName,
+                  g.village,
+                  g.neighborhood,
+                );
+                const baki = Math.max(0, g.totalPrice - cashPaid);
+                return (
+                  <tr key={g.key} style={{ borderBottom: "1px solid #eee" }}>
+                    <td style={{ padding: "5px 8px" }}>{i + 1}</td>
+                    <td style={{ padding: "5px 8px" }}>{g.customerName}</td>
+                    <td style={{ padding: "5px 8px" }}>{g.mobile || "—"}</td>
+                    <td style={{ padding: "5px 8px" }}>{g.village}</td>
+                    <td style={{ padding: "5px 8px" }}>{g.neighborhood}</td>
+                    <td
+                      style={{
+                        padding: "5px 8px",
+                        textAlign: "right",
+                        fontWeight: 600,
+                      }}
                     >
-                      + নতুন ধরন যোগ
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <Input
-                        className="h-7 text-xs w-28"
-                        placeholder="ধরনের নাম"
-                        value={newTypeInput}
-                        onChange={(e) => setNewTypeInput(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleAddCustomType()
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={handleAddCustomType}
-                        style={{ backgroundColor: "#1F6D63" }}
-                      >
-                        যোগ
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => setShowNewTypeInput(false)}
-                      >
-                        ✕
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="border rounded-lg overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted">
-                    <tr>
-                      <th className="text-left px-2 py-1.5 font-medium">
-                        আইটেম
-                      </th>
-                      <th className="text-left px-2 py-1.5 font-medium">ওষুধ</th>
-                      <th className="text-left px-2 py-1.5 font-medium">
-                        পরিমাণ / ইউনিট
-                      </th>
-                      <th className="text-left px-2 py-1.5 font-medium w-20">
-                        দাম
-                      </th>
-                      <th className="w-8" />
-                    </tr>
-                  </thead>
+                      {taka(baki)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid #333", fontWeight: 700 }}>
+                <td
+                  colSpan={5}
+                  style={{ padding: "6px 8px", textAlign: "right" }}
+                >
+                  সর্বমোট বকেয়া:
+                </td>
+                <td style={{ padding: "6px 8px", textAlign: "right" }}>
+                  {taka(totalDue)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+
+      {/* Customer-level Print Area */}
+      {printMode === "customer" && printCustomerGroup && (
+        <div className="hidden print:block">
+          <div
+            style={{
+              textAlign: "center",
+              borderBottom: "2px solid #0F3A3D",
+              paddingBottom: 12,
+              marginBottom: 12,
+            }}
+          >
+            <img
+              src="/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg"
+              alt="লোগো"
+              style={{
+                width: 64,
+                height: 64,
+                borderRadius: "50%",
+                objectFit: "cover",
+                margin: "0 auto 8px",
+              }}
+            />
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: "#0F3A3D" }}>
+              {getPharmacyInfo().name}
+            </h1>
+            <p style={{ fontSize: 13 }}>{getPharmacyInfo().address}</p>
+            <p style={{ fontSize: 13 }}>ফোন: {getPharmacyInfo().phone}</p>
+          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+            ব্যক্তিগত বকেয়া বিবরণ
+          </h2>
+          <div style={{ marginBottom: 12, fontSize: 13 }}>
+            <p>
+              <strong>গ্রাহকের নাম:</strong> {printCustomerGroup.customerName}
+            </p>
+            {printCustomerGroup.fatherName && (
+              <p>
+                <strong>পিতার নাম:</strong> {printCustomerGroup.fatherName}
+              </p>
+            )}
+            {printCustomerGroup.mobile && (
+              <p>
+                <strong>মোবাইল:</strong> {printCustomerGroup.mobile}
+              </p>
+            )}
+            <p>
+              <strong>গ্রাম:</strong> {printCustomerGroup.village}
+            </p>
+            <p>
+              <strong>পাড়া:</strong> {printCustomerGroup.neighborhood}
+            </p>
+            <p>
+              <strong>তারিখ:</strong> {new Date().toLocaleDateString("bn-BD")}
+            </p>
+          </div>
+          <table
+            style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}
+          >
+            <thead>
+              <tr style={{ borderBottom: "2px solid #333" }}>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>
+                  ঔষধের নাম
+                </th>
+                <th style={{ padding: "6px 8px", textAlign: "left" }}>পরিমাণ</th>
+                <th style={{ padding: "6px 8px", textAlign: "right" }}>
+                  একক দাম
+                </th>
+                <th style={{ padding: "6px 8px", textAlign: "right" }}>
+                  মোট বিল
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {printCustomerGroup.items.map((it, j) => (
+                <tr
+                  key={String(it.id) + String(j)}
+                  style={{ borderBottom: "1px solid #eee" }}
+                >
+                  <td style={{ padding: "5px 8px" }}>{it.medicineName}</td>
+                  <td style={{ padding: "5px 8px" }}>
+                    {String(it.quantity)}{" "}
+                    {getDueUnit(printCustomerGroup.date, it.medicineName) ||
+                      "টি"}
+                  </td>
+                  <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                    {taka(Number(it.unitPrice))}
+                  </td>
+                  <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                    {taka(Number(it.totalPrice))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {(() => {
+            const cashPaid = getCashPaid(
+              printCustomerGroup.customerName,
+              printCustomerGroup.village,
+              printCustomerGroup.neighborhood,
+            );
+            const baki = Math.max(0, printCustomerGroup.totalPrice - cashPaid);
+            return (
+              <div
+                style={{
+                  marginTop: 12,
+                  borderTop: "2px solid #333",
+                  paddingTop: 8,
+                }}
+              >
+                <table style={{ width: "100%", fontSize: 13 }}>
                   <tbody>
-                    {form.lineItems.map((li, idx) => {
-                      const filteredMeds = medicines.filter(
-                        (m) => m.itemType === li.itemType,
-                      );
-                      const selectedMed = medicines.find(
-                        (m) => String(m.id) === li.medicineId,
-                      );
-                      const lineTotal = selectedMed
-                        ? Number(selectedMed.sellingPrice) *
-                          (Number.parseInt(li.quantity) || 0)
-                        : 0;
-                      return (
-                        <tr key={li.id} className="border-t">
-                          <td className="px-2 py-1.5">
-                            <Select
-                              value={li.itemType}
-                              onValueChange={(v) =>
-                                updateLineItem(idx, { itemType: v })
-                              }
-                            >
-                              <SelectTrigger className="h-8 text-xs w-28">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {itemTypes.map((t) => (
-                                  <SelectItem key={t} value={t}>
-                                    {t}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <Select
-                              value={li.medicineId}
-                              onValueChange={(v) =>
-                                updateLineItem(idx, { medicineId: v })
-                              }
-                            >
-                              <SelectTrigger className="h-8 text-xs w-48">
-                                <SelectValue placeholder="ওষুধ বেছে নিন" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {filteredMeds.length === 0 ? (
-                                  <SelectItem value="_none" disabled>
-                                    এই ধরনের ওষুধ নেই
-                                  </SelectItem>
-                                ) : (
-                                  filteredMeds.map((m) => (
-                                    <SelectItem
-                                      key={String(m.id)}
-                                      value={String(m.id)}
-                                    >
-                                      {m.name} ({m.brand}) -{" "}
-                                      {taka(Number(m.sellingPrice))}
-                                    </SelectItem>
-                                  ))
-                                )}
-                              </SelectContent>
-                            </Select>
-                          </td>
-                          <td className="px-2 py-1.5">
-                            <div className="flex gap-1 items-center">
-                              <Input
-                                type="number"
-                                min="1"
-                                className="h-8 text-xs w-14"
-                                value={li.quantity}
-                                onChange={(e) =>
-                                  updateLineItem(idx, {
-                                    quantity: e.target.value,
-                                  })
-                                }
-                              />
-                              <Select
-                                value={li.quantityUnit}
-                                onValueChange={(v) =>
-                                  updateLineItem(idx, { quantityUnit: v })
-                                }
-                              >
-                                <SelectTrigger className="h-8 text-xs w-24">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {dueQtyUnits.map((u) => (
-                                    <SelectItem key={u} value={u}>
-                                      {u}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          </td>
-                          <td className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">
-                            {lineTotal > 0 ? taka(lineTotal) : "—"}
-                          </td>
-                          <td className="px-2 py-1.5">
-                            {form.lineItems.length > 1 && (
-                              <button
-                                type="button"
-                                className="text-destructive hover:text-red-700 text-xs"
-                                onClick={() => removeLineItem(idx)}
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    <tr>
+                      <td style={{ padding: "3px 8px" }}>মোট বিল:</td>
+                      <td style={{ padding: "3px 8px", textAlign: "right" }}>
+                        {taka(printCustomerGroup.totalPrice)}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style={{ padding: "3px 8px" }}>নগদ পরিশোধ:</td>
+                      <td style={{ padding: "3px 8px", textAlign: "right" }}>
+                        {taka(cashPaid)}
+                      </td>
+                    </tr>
+                    <tr style={{ fontWeight: 700 }}>
+                      <td style={{ padding: "3px 8px" }}>বাকি বকেয়া:</td>
+                      <td style={{ padding: "3px 8px", textAlign: "right" }}>
+                        {taka(baki)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mt-2 text-xs"
-                  onClick={addLineItem}
-                  data-ocid="due.add_line_button"
-                >
-                  <Plus size={12} className="mr-1" /> আইটেম যোগ করুন
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="mt-2 text-xs text-muted-foreground"
-                  onClick={() => setShowUnitMgr(true)}
-                  data-ocid="due.unit_mgr_button"
-                >
-                  ইউনিট পরিচালনা
-                </Button>
-              </div>
-            </div>
-
-            {/* Total & Status */}
-            <div className="grid grid-cols-2 gap-3 items-end">
-              <div>
-                <Label>মোট দাম</Label>
-                <Input
-                  readOnly
-                  value={taka(
-                    form.lineItems.reduce((sum, li) => {
-                      const med = medicines.find(
-                        (m) => String(m.id) === li.medicineId,
-                      );
-                      return (
-                        sum +
-                        (med
-                          ? Number(med.sellingPrice) *
-                            (Number.parseInt(li.quantity) || 0)
-                          : 0)
-                      );
-                    }, 0),
-                  )}
-                  className="bg-muted font-bold"
-                />
-              </div>
-              <div>
-                <Label>স্ট্যাটাস</Label>
-                <Select
-                  value={form.status}
-                  onValueChange={(v) => setForm((p) => ({ ...p, status: v }))}
-                >
-                  <SelectTrigger data-ocid="due.status.select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Due">বকেয়া</SelectItem>
-                    <SelectItem value="Paid">পরিশোধিত</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setOpen(false)}
-              data-ocid="due.cancel_button"
-            >
-              বাতিল
-            </Button>
-            <Button
-              onClick={handleSave}
-              disabled={saving}
-              data-ocid="due.save_button"
-              style={{ backgroundColor: "#1F6D63" }}
-            >
-              {saving ? "সংরক্ষণ হচ্ছে..." : "যোগ করুন"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Unit Manager Dialog */}
-      <Dialog open={showUnitMgr} onOpenChange={setShowUnitMgr}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>ইউনিট পরিচালনা</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                value={newUnitInput}
-                onChange={(e) => setNewUnitInput(e.target.value)}
-                placeholder="নতুন ইউনিট (যেমন: Sachet)"
-                className="h-8 text-sm"
-                onKeyDown={(e) => e.key === "Enter" && handleAddDueUnit()}
-              />
-              <Button
-                size="sm"
-                onClick={handleAddDueUnit}
-                style={{ backgroundColor: "#1F6D63" }}
-              >
-                যোগ
-              </Button>
-            </div>
-            <div className="space-y-1 max-h-48 overflow-y-auto">
-              {dueQtyUnits.map((u) => (
-                <div
-                  key={u}
-                  className="flex items-center gap-2 py-1 border-b last:border-0"
-                >
-                  {editingUnit === u ? (
-                    <>
-                      <Input
-                        value={editUnitVal}
-                        onChange={(e) => setEditUnitVal(e.target.value)}
-                        className="h-7 text-sm flex-1"
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleEditDueUnit()
-                        }
-                      />
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={handleEditDueUnit}
-                      >
-                        সেভ
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setEditingUnit(null)}
-                      >
-                        বাতিল
-                      </Button>
-                    </>
-                  ) : (
-                    <>
-                      <span className="flex-1 text-sm">{u}</span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-6 px-2 text-xs"
-                        onClick={() => {
-                          setEditingUnit(u);
-                          setEditUnitVal(u);
-                        }}
-                      >
-                        ✎
-                      </Button>
-                      {!["Piece", "Box", "Strip", "Bottle", "Pack"].includes(
-                        u,
-                      ) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 px-2 text-xs text-destructive"
-                          onClick={() => handleDeleteDueUnit(u)}
-                        >
-                          ✕
-                        </Button>
-                      )}
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+            );
+          })()}
+        </div>
+      )}
     </div>
   );
 }
@@ -2921,10 +3294,10 @@ function ReportsPage({
             }}
           />
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F3A3D" }}>
-            {PHARMACY_NAME}
+            {getPharmacyInfo().name}
           </h1>
           <p style={{ fontSize: 13 }}>
-            {PHARMACY_ADDRESS} | ফোন: {PHARMACY_PHONE}
+            {getPharmacyInfo().address} | ফোন: {getPharmacyInfo().phone}
           </p>
         </div>
 
@@ -3339,9 +3712,233 @@ function ExpensePage() {
   );
 }
 
+// ─── Settings Page ──────────────────────────────────────────────────────────
+
+function SettingsPage({
+  settings,
+  onSave,
+}: {
+  settings: PharmacySettings;
+  onSave: (s: PharmacySettings) => void;
+}) {
+  const [form, setForm] = useState<PharmacySettings>(settings);
+  const [saving, setSaving] = useState(false);
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      setForm((prev) => ({ ...prev, logoUrl: ev.target?.result as string }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    setSaving(true);
+    setTimeout(() => {
+      onSave(form);
+      localStorage.setItem("pharmacySettings", JSON.stringify(form));
+      toast.success("সেটিং সেভ হয়েছে");
+      setSaving(false);
+    }, 300);
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="rounded-xl overflow-hidden shadow-sm border border-border">
+        <div
+          className="px-6 py-4 text-white font-bold text-lg"
+          style={{ backgroundColor: "#0F3A3D" }}
+        >
+          ⚙️ সেটিং
+        </div>
+        <div className="bg-card p-6 space-y-6">
+          {/* Logo Upload */}
+          <div>
+            <Label className="text-sm font-semibold mb-3 block">
+              লোগো আপলোড
+            </Label>
+            <div className="flex items-center gap-5">
+              <img
+                src={form.logoUrl}
+                alt="লোগো প্রিভিউ"
+                className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                data-ocid="settings.logo.preview"
+              />
+              <div>
+                <label
+                  htmlFor="logo-upload"
+                  className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+                  style={{ backgroundColor: "#1F6D63" }}
+                  data-ocid="settings.upload_button"
+                >
+                  📁 লোগো পরিবর্তন করুন
+                </label>
+                <input
+                  id="logo-upload"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleLogoUpload}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  JPG, PNG, GIF সমর্থিত
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Pharmacy Name */}
+          <div>
+            <Label htmlFor="pname" className="text-sm font-semibold mb-1 block">
+              প্রতিষ্ঠানের নাম
+            </Label>
+            <Input
+              id="pname"
+              value={form.name}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, name: e.target.value }))
+              }
+              placeholder="প্রতিষ্ঠানের নাম লিখুন"
+              data-ocid="settings.name.input"
+            />
+          </div>
+
+          {/* Address */}
+          <div>
+            <Label
+              htmlFor="paddress"
+              className="text-sm font-semibold mb-1 block"
+            >
+              ঠিকানা
+            </Label>
+            <Input
+              id="paddress"
+              value={form.address}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, address: e.target.value }))
+              }
+              placeholder="ঠিকানা লিখুন"
+              data-ocid="settings.address.input"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <Label
+              htmlFor="pemail"
+              className="text-sm font-semibold mb-1 block"
+            >
+              ইমেইল আইডি
+            </Label>
+            <Input
+              id="pemail"
+              type="email"
+              value={form.email}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, email: e.target.value }))
+              }
+              placeholder="ইমেইল লিখুন"
+              data-ocid="settings.email.input"
+            />
+          </div>
+
+          {/* Phone */}
+          <div>
+            <Label
+              htmlFor="pphone"
+              className="text-sm font-semibold mb-1 block"
+            >
+              মোবাইল নম্বর
+            </Label>
+            <Input
+              id="pphone"
+              value={form.phone}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, phone: e.target.value }))
+              }
+              placeholder="মোবাইল নম্বর লিখুন"
+              data-ocid="settings.phone.input"
+            />
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full text-white font-semibold"
+            style={{ backgroundColor: "#0F3A3D" }}
+            data-ocid="settings.save_button"
+          >
+            {saving ? "সেভ হচ্ছে..." : "💾 সেটিং সেভ করুন"}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── About Page ──────────────────────────────────────────────────────────────
+
+function AboutPage() {
+  return (
+    <div className="max-w-2xl mx-auto space-y-6">
+      <div className="rounded-xl overflow-hidden shadow-sm border border-border">
+        <div
+          className="px-6 py-4 text-white font-bold text-lg"
+          style={{ backgroundColor: "#0F3A3D" }}
+        >
+          ℹ️ আমাদের সম্পর্কে
+        </div>
+        <div className="bg-card p-8 text-center space-y-4">
+          <img
+            src="/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg"
+            alt="লোগো"
+            className="w-24 h-24 rounded-full object-cover mx-auto border-4"
+            style={{ borderColor: "#0F3A3D" }}
+          />
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: "#0F3A3D" }}>
+              সাওম ফার্মেসি
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              বালিগাঁও, লাখাই, হবিগঞ্জ
+            </p>
+          </div>
+          <p className="text-base leading-relaxed text-foreground max-w-md mx-auto">
+            সাওম ফার্মেসি একটি পেশাদার ফার্মেসি ম্যানেজমেন্ট সিস্টেম যা গ্রামীণ ফার্মেসির জন্য
+            তৈরি। এটি স্টক ম্যানেজমেন্ট, বিক্রয় ট্র্যাকিং, বকেয়া হিসাব, আয়-ব্যয় ট্র্যাকিং সহ
+            সকল প্রয়োজনীয় সুবিধা প্রদান করে।
+          </p>
+          <div
+            className="rounded-lg p-4 text-sm space-y-1 text-left inline-block"
+            style={{ backgroundColor: "#0F3A3D10" }}
+          >
+            <p>
+              <span className="font-semibold">সংস্করণ:</span> ১০.০
+            </p>
+            <p>
+              <span className="font-semibold">অবস্থান:</span> বালিগাঁও, লাখাই, হবিগঞ্জ
+            </p>
+            <p>
+              <span className="font-semibold">বৈশিষ্ট্য:</span> অফলাইন + অনলাইন
+              সমর্থন
+            </p>
+            <p>
+              <span className="font-semibold">প্ল্যাটফর্ম:</span> Caffeine.ai
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pharmacySettings, setPharmacySettings] =
+    useState<PharmacySettings>(getPharmacyInfo);
   const { actor } = useActor();
 
   const [medicines, setMedicines] = useState<MedicineRecord[]>([]);
@@ -3389,6 +3986,7 @@ export default function App() {
         onChange={setPage}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        pharmacySettings={pharmacySettings}
       />
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -3403,15 +4001,15 @@ export default function App() {
             <Menu size={22} />
           </button>
           <img
-            src="/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg"
+            src={pharmacySettings.logoUrl}
             alt="লোগো"
             className="w-8 h-8 rounded-full object-cover flex-shrink-0"
           />
           <h1 className="font-bold text-lg" style={{ color: "#0F3A3D" }}>
-            {PHARMACY_NAME}
+            {pharmacySettings.name}
           </h1>
           <span className="text-xs text-muted-foreground ml-auto">
-            {PHARMACY_ADDRESS}
+            {pharmacySettings.address}
           </span>
         </header>
 
@@ -3433,14 +4031,7 @@ export default function App() {
               actor={actor}
             />
           )}
-          {page === "sales" && (
-            <SalesPage
-              medicines={medicines}
-              sales={sales}
-              onRefresh={loadAll}
-              actor={actor}
-            />
-          )}
+
           {page === "purchases" && (
             <PurchasesPage
               medicines={medicines}
@@ -3450,7 +4041,15 @@ export default function App() {
             />
           )}
           {page === "due" && (
-            <DuePage
+            <SalesPage
+              medicines={medicines}
+              sales={sales}
+              onRefresh={loadAll}
+              actor={actor}
+            />
+          )}
+          {page === "dueledger" && (
+            <DueKhataPage
               medicines={medicines}
               dueRecords={dueRecords}
               onRefresh={loadAll}
@@ -3462,6 +4061,16 @@ export default function App() {
           )}
           {page === "income" && <IncomePage />}
           {page === "expense" && <ExpensePage />}
+          {page === "settings" && (
+            <SettingsPage
+              settings={pharmacySettings}
+              onSave={(s) => {
+                setPharmacySettings(s);
+                localStorage.setItem("pharmacySettings", JSON.stringify(s));
+              }}
+            />
+          )}
+          {page === "about" && <AboutPage />}
         </main>
       </div>
     </div>

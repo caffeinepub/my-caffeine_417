@@ -1,32 +1,33 @@
 # সাওম ফার্মেসি
 
 ## Current State
-- MedicinesPage has a "নতুন ওষুধ" button that opens an add/edit dialog for medicine stock.
-- PurchasesPage allows purchasing existing medicines from a dropdown, with fields: medicine select, quantity, unit price, supplier name.
-- The purchase form does NOT support creating new medicines—medicines must exist before purchasing.
+ক্রয় (Purchase) পেজে সরবরাহকারীর শুধু নাম (supplierName) সংরক্ষণ হয়। PurchaseRecord backend type-এ supplierAddress বা supplierMobile ফিল্ড নেই। কোনো PDF export নেই।
 
 ## Requested Changes (Diff)
 
 ### Add
-- PurchasesPage: New full-featured purchase form with fields: ঔষধের নাম (text input with autocomplete for existing), Strength/Size, ব্র্যান্ড, ধরন (Tablet/Syrup/Capsule/etc.), Quantity + Unit dropdown, ক্রয়মূল্য, বিক্রয়মূল্য, Supplier নাম, মেয়াদ উত্তীর্ণ তারিখ, সর্বনিম্ন স্টক সতর্কতা.
-- Purchase logic: if medicine with same name already exists → update its quantity (add purchased qty) and update prices/expiry; if new medicine → call addMedicine first, then createPurchase.
-- Purchase history table: add Supplier column group/filter if viewing by supplier.
+- PurchasesPage-এ দুটি নতুন ফিল্ড: সরবরাহকারীর ঠিকানা (supplierAddress) এবং মোবাইল নম্বর (supplierMobile)
+- localStorage-এ `supplierDirectory` নামে একটি সরবরাহকারী ডিরেক্টরি রাখা হবে (key: supplierName → {address, mobile})
+- সরবরাহকারীর নাম টাইপ করলে অটো-ফিল হবে (যদি আগে সেভ করা থাকে)
+- ক্রয় সাবমিট করলে supplierAddress ও supplierMobile localStorage-এ সেভ হবে
+- PDF অর্ডার শীট এক্সপোর্ট বাটন: নির্দিষ্ট সরবরাহকারীর নামে ফিল্টার করে PDF তৈরি করা যাবে
+  - PDF header: ফার্মেসির নাম, ঠিকানা, লোগো (pharmacySettings থেকে)
+  - To: সরবরাহকারীর নাম, ঠিকানা, মোবাইল
+  - অর্ডার টেবিল: ঔষধের নাম, পরিমাণ, ইউনিট মূল্য, মোট
+  - Footer: মোট টাকা, তারিখ
+- ক্রয় ইতিহাস টেবিলে সরবরাহকারীর মোবাইল কলামও দেখাবে
 
 ### Modify
-- MedicinesPage: Remove the "নতুন ওষুধ" add button (and openAdd call). Keep the edit/delete functionality. The Dialog for editing still works; just disable opening it for new records (remove the add flow entirely from this page).
-- PurchasesPage: Completely replace the minimal form with the full purchase entry form described above.
+- PurchasesPage: supplier state-এ address ও mobile যোগ, handleSubmit-এ localStorage supplier directory আপডেট, reset-এ নতুন ফিল্ড পরিষ্কার
 
 ### Remove
-- The ability to add a new medicine from MedicinesPage ("নতুন ওষুধ" button removed). New medicines only enter via the ক্রয় form.
+- কিছু সরানো হবে না
 
 ## Implementation Plan
-1. In MedicinesPage: remove the "নতুন ওষুধ" Button and openAdd function. Keep the edit dialog and editRecord flow intact.
-2. Rewrite PurchasesPage:
-   - Local state for all form fields: medicineName (text), strength, strengthUnit, brand, itemType, quantity, quantityUnit, costPrice, sellingPrice, supplier, expiryDate, minStockAlert.
-   - Medicine name autocomplete: show suggestions from existing medicines as user types.
-   - When medicine name matches existing: pre-fill brand/type/prices/strength.
-   - On submit:
-     a. Find if medicine exists by name match.
-     b. If exists: update it (add qty, update prices/expiry if changed), then createPurchase with its id.
-     c. If new: call addMedicine with all fields, then createPurchase with returned id.
-   - History table shows all purchases with medicineName, supplier, qty, unit price, total, date.
+1. `getSupplierDirectory()` / `saveSupplierToDirectory()` হেল্পার ফাংশন (localStorage)
+2. PurchasesPage-এ `supplierAddress`, `supplierMobile` state যোগ
+3. supplier নাম পরিবর্তনে অটো-ফিল লজিক
+4. handleSubmit-এ localStorage আপডেট
+5. ফর্মে দুটি নতুন ফিল্ড (ঠিকানা, মোবাইল)
+6. `exportOrderSheetPDF(supplierName, purchases, pharmacySettings)` ফাংশন — window.print বা jsPDF ব্যবহার করে PDF তৈরি (jsPDF+autoTable)
+7. ক্রয় ইতিহাস টেবিলে মোবাইল কলাম যোগ এবং সরবরাহকারীভিত্তিক ফিল্টার + এক্সপোর্ট বাটন

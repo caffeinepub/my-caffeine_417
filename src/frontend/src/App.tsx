@@ -31,6 +31,7 @@ import {
   BarChart3,
   CheckCircle,
   ClipboardList,
+  FileText,
   Info,
   LayoutDashboard,
   Menu,
@@ -107,6 +108,21 @@ const VILLAGES: Record<string, string[]> = {
   ],
   ফরিদপুর: ["শান্তিপুর", "কাজলদিঘি", "পশ্চিমহাটি", "পূর্বহাটি", "মাইজহাটি", "আগলা হাটি"],
 };
+
+interface SupplierInfo {
+  name: string;
+  address: string;
+  mobile: string;
+}
+function getSupplierDirectory(): Record<string, SupplierInfo> {
+  return JSON.parse(localStorage.getItem("supplierDirectory") || "{}");
+}
+function saveSupplierToDirectory(info: SupplierInfo) {
+  if (!info.name.trim()) return;
+  const dir = getSupplierDirectory();
+  dir[info.name.trim()] = info;
+  localStorage.setItem("supplierDirectory", JSON.stringify(dir));
+}
 
 function getItemTypes(): string[] {
   const base = ["ট্যাবলেট", "ক্যাপসুল", "সিরাপ", "ইনজেকশন", "অন্যান্য"];
@@ -2039,6 +2055,10 @@ function PurchasesPage({
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [supplier, setSupplier] = useState("");
+  const [supplierAddress, setSupplierAddress] = useState("");
+  const [supplierMobile, setSupplierMobile] = useState("");
+  const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
+  const [selectedExportSupplier, setSelectedExportSupplier] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [minStockAlert, setMinStockAlert] = useState("10");
   const [saving, setSaving] = useState(false);
@@ -2064,6 +2084,26 @@ function PurchasesPage({
     setCostPrice(String(Number(m.purchasePrice)));
     setShowSuggestions(false);
   }
+
+  function handleSupplierChange(value: string) {
+    setSupplier(value);
+    setShowSupplierSuggestions(value.trim().length > 0);
+    const dir = getSupplierDirectory();
+    const found = dir[value.trim()];
+    if (found) {
+      setSupplierAddress(found.address);
+      setSupplierMobile(found.mobile);
+    }
+  }
+
+  const supplierSuggestions =
+    supplier.trim().length > 0
+      ? Object.keys(getSupplierDirectory())
+          .filter((k) =>
+            k.toLowerCase().includes(supplier.trim().toLowerCase()),
+          )
+          .slice(0, 6)
+      : [];
 
   function addUnit() {
     const v = newUnit.trim();
@@ -2134,6 +2174,13 @@ function PurchasesPage({
         supplierName: supplier.trim(),
         date: nowNano(),
       };
+      if (supplier.trim()) {
+        saveSupplierToDirectory({
+          name: supplier.trim(),
+          address: supplierAddress.trim(),
+          mobile: supplierMobile.trim(),
+        });
+      }
       await actor?.createPurchase(purchase);
 
       toast.success("ক্রয় সম্পন্ন — স্টকে যোগ হয়েছে");
@@ -2146,6 +2193,8 @@ function PurchasesPage({
       setCostPrice("");
       setSellingPrice("");
       setSupplier("");
+      setSupplierAddress("");
+      setSupplierMobile("");
       setExpiryDate("");
       setMinStockAlert("10");
       onRefresh();
@@ -2159,6 +2208,132 @@ function PurchasesPage({
   const sortedPurchases = [...purchases].sort((a, b) =>
     Number(b.date - a.date),
   );
+
+  const uniqueSuppliers = [
+    ...new Set(sortedPurchases.map((p) => p.supplierName).filter(Boolean)),
+  ];
+
+  function exportOrderSheetPDF(supplierName: string) {
+    const filtered = sortedPurchases.filter(
+      (p) => p.supplierName === supplierName,
+    );
+    if (filtered.length === 0) {
+      toast.error("এই সরবরাহকারীর কোনো ক্রয় নেই");
+      return;
+    }
+    const settings: {
+      name?: string;
+      address?: string;
+      phone?: string;
+      logoUrl?: string;
+    } = JSON.parse(localStorage.getItem("pharmacySettings") || "{}");
+    const supplierDir = getSupplierDirectory();
+    const sup = supplierDir[supplierName] || {
+      name: supplierName,
+      address: "",
+      mobile: "",
+    };
+    const totalAmount = filtered.reduce(
+      (sum, p) => sum + Number(p.totalPrice),
+      0,
+    );
+    const dateStr = new Date().toLocaleDateString("bn-BD");
+
+    const rows = filtered
+      .map(
+        (p, i) => `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${p.medicineName}</td>
+        <td>${String(p.quantity)}</td>
+        <td>৳${Number(p.unitPrice).toLocaleString("bn-BD")}</td>
+        <td>৳${Number(p.totalPrice).toLocaleString("bn-BD")}</td>
+      </tr>
+    `,
+      )
+      .join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8"/>
+<title>অর্ডার শীট - ${supplierName}</title>
+<style>
+  body { font-family: 'Noto Sans Bengali', Arial, sans-serif; margin: 0; padding: 20px; color: #1a1a1a; }
+  .header { display: flex; align-items: center; gap: 16px; border-bottom: 3px solid #1F6D63; padding-bottom: 12px; margin-bottom: 20px; }
+  .logo { width: 70px; height: 70px; object-fit: contain; }
+  .pharmacy-name { font-size: 22px; font-weight: bold; color: #1F6D63; }
+  .pharmacy-details { font-size: 13px; color: #555; }
+  .title-section { text-align: center; margin: 16px 0 20px; }
+  .title-section h2 { font-size: 20px; font-weight: bold; color: #1F6D63; margin: 0; }
+  .title-section p { font-size: 13px; color: #555; margin: 4px 0 0; }
+  .to-section { background: #f0f7f6; border-left: 4px solid #1F6D63; padding: 10px 14px; margin-bottom: 20px; border-radius: 4px; }
+  .to-section strong { color: #1F6D63; font-size: 13px; display: block; margin-bottom: 4px; }
+  .to-section p { margin: 2px 0; font-size: 14px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { background: #1F6D63; color: white; padding: 8px 10px; text-align: left; }
+  td { padding: 7px 10px; border-bottom: 1px solid #e0e0e0; }
+  tr:nth-child(even) td { background: #f8f8f8; }
+  .total-row td { font-weight: bold; background: #e8f4f2 !important; color: #1F6D63; font-size: 15px; }
+  .footer { margin-top: 30px; text-align: center; font-size: 13px; color: #777; border-top: 1px dashed #ccc; padding-top: 14px; }
+  @media print { body { padding: 10px; } }
+</style>
+</head>
+<body>
+<div class="header">
+  ${settings.logoUrl ? `<img class="logo" src="${settings.logoUrl}" alt="logo"/>` : ""}
+  <div>
+    <div class="pharmacy-name">${settings.name || "সাওম ফার্মেসি"}</div>
+    <div class="pharmacy-details">${settings.address || ""} ${settings.phone ? `| ☎ ${settings.phone}` : ""}</div>
+  </div>
+</div>
+
+<div class="title-section">
+  <h2>অর্ডার শীট / Order Sheet</h2>
+  <p>তারিখ: ${dateStr}</p>
+</div>
+
+<div class="to-section">
+  <strong>প্রতি (সরবরাহকারী):</strong>
+  <p><strong>${sup.name}</strong></p>
+  ${sup.address ? `<p>📍 ${sup.address}</p>` : ""}
+  ${sup.mobile ? `<p>📞 ${sup.mobile}</p>` : ""}
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>ক্রম</th>
+      <th>ঔষধের নাম</th>
+      <th>পরিমাণ</th>
+      <th>একক মূল্য</th>
+      <th>মোট</th>
+    </tr>
+  </thead>
+  <tbody>
+    ${rows}
+    <tr class="total-row">
+      <td colspan="4" style="text-align:right;">সর্বমোট:</td>
+      <td>৳${totalAmount.toLocaleString("bn-BD")}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  <p>সম্মানের সাথে প্রেরিত &mdash; ${settings.name || "সাওম ফার্মেসি"}</p>
+  <p>${settings.address || ""} ${settings.phone ? `| ☎ ${settings.phone}` : ""}</p>
+</div>
+
+<script>window.onload = function(){ window.print(); }<\/script>
+</body>
+</html>`;
+
+    const win = window.open("", "_blank");
+    if (win) {
+      win.document.write(html);
+      win.document.close();
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -2305,12 +2480,59 @@ function PurchasesPage({
             />
           </div>
 
-          <div>
+          <div className="relative">
             <Label>Supplier নাম</Label>
             <Input
               value={supplier}
-              onChange={(e) => setSupplier(e.target.value)}
+              onChange={(e) => handleSupplierChange(e.target.value)}
+              onBlur={() =>
+                setTimeout(() => setShowSupplierSuggestions(false), 150)
+              }
+              onFocus={() =>
+                setShowSupplierSuggestions(supplier.trim().length > 0)
+              }
               placeholder="সরবরাহকারীর নাম"
+            />
+            {showSupplierSuggestions && supplierSuggestions.length > 0 && (
+              <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-40 overflow-auto">
+                {supplierSuggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                    onMouseDown={() => {
+                      const dir = getSupplierDirectory();
+                      const found = dir[s];
+                      setSupplier(s);
+                      if (found) {
+                        setSupplierAddress(found.address);
+                        setSupplierMobile(found.mobile);
+                      }
+                      setShowSupplierSuggestions(false);
+                    }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <Label>সরবরাহকারীর ঠিকানা</Label>
+            <Input
+              value={supplierAddress}
+              onChange={(e) => setSupplierAddress(e.target.value)}
+              placeholder="ঠিকানা লিখুন"
+            />
+          </div>
+
+          <div>
+            <Label>সরবরাহকারীর মোবাইল নম্বর</Label>
+            <Input
+              value={supplierMobile}
+              onChange={(e) => setSupplierMobile(e.target.value)}
+              placeholder="মোবাইল নম্বর"
             />
           </div>
 
@@ -2348,8 +2570,37 @@ function PurchasesPage({
       </div>
 
       <div className="bg-card rounded-lg shadow-card overflow-auto">
-        <div className="p-4 border-b">
-          <h2 className="font-semibold">ক্রয় ইতিহাস</h2>
+        <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center gap-3">
+          <h2 className="font-semibold flex-1">ক্রয় ইতিহাস</h2>
+          <div className="flex items-center gap-2">
+            <select
+              className="border rounded px-2 py-1 text-sm bg-background"
+              value={selectedExportSupplier}
+              onChange={(e) => setSelectedExportSupplier(e.target.value)}
+            >
+              <option value="">— সরবরাহকারী বেছে নিন —</option>
+              {uniqueSuppliers.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="flex items-center gap-1 bg-emerald-700 text-white px-3 py-1.5 rounded text-sm hover:bg-emerald-800 transition-colors"
+              onClick={() => {
+                if (!selectedExportSupplier) {
+                  toast.error("প্রথমে একটি সরবরাহকারী বেছে নিন");
+                  return;
+                }
+                exportOrderSheetPDF(selectedExportSupplier);
+              }}
+              data-ocid="purchases.primary_button"
+            >
+              <FileText className="w-4 h-4" />
+              অর্ডার শীট PDF
+            </button>
+          </div>
         </div>
         <Table>
           <TableHeader>
@@ -2360,6 +2611,7 @@ function PurchasesPage({
               <TableHead>ক্রয়মূল্য</TableHead>
               <TableHead>মোট</TableHead>
               <TableHead>সরবরাহকারী</TableHead>
+              <TableHead>মোবাইল</TableHead>
               <TableHead>তারিখ</TableHead>
             </TableRow>
           </TableHeader>
@@ -2367,7 +2619,7 @@ function PurchasesPage({
             {sortedPurchases.length === 0 && (
               <TableRow>
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="text-center text-muted-foreground py-8"
                   data-ocid="purchases.empty_state"
                 >
@@ -2388,6 +2640,12 @@ function PurchasesPage({
                   {taka(Number(p.totalPrice))}
                 </TableCell>
                 <TableCell>{p.supplierName || "—"}</TableCell>
+                <TableCell>
+                  {(() => {
+                    const dir = getSupplierDirectory();
+                    return dir[p.supplierName]?.mobile || "—";
+                  })()}
+                </TableCell>
                 <TableCell>{formatDate(p.date)}</TableCell>
               </TableRow>
             ))}

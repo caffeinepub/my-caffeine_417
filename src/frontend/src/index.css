@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.5rem;
+    --background: 0.961 0.018 196;
+    --foreground: 0.18 0.04 196;
+    --card: 1 0 0;
+    --card-foreground: 0.18 0.04 196;
+    --popover: 1 0 0;
+    --popover-foreground: 0.18 0.04 196;
+    --primary: 0.45 0.09 196;
+    --primary-foreground: 0.99 0 0;
+    --secondary: 0.92 0.025 196;
+    --secondary-foreground: 0.28 0.07 196;
+    --muted: 0.93 0.015 196;
+    --muted-foreground: 0.5 0.03 196;
+    --accent: 0.9 0.03 196;
+    --accent-foreground: 0.28 0.07 196;
+    --destructive: 0.577 0.245 27.325;
+    --destructive-foreground: 0.985 0 0;
+    --border: 0.88 0.02 196;
+    --input: 0.88 0.02 196;
+    --ring: 0.45 0.09 196;
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.28 0.07 196;
+    --sidebar-foreground: 0.97 0.01 196;
+    --sidebar-primary: 0.45 0.09 196;
+    --sidebar-primary-foreground: 0.99 0 0;
+    --sidebar-accent: 0.35 0.08 196;
+    --sidebar-accent-foreground: 0.99 0 0;
+    --sidebar-border: 0.32 0.06 196;
+    --sidebar-ring: 0.5 0.08 196;
+    --pharmacy-green: 0.45 0.09 196;
+    --pharmacy-dark: 0.28 0.07 196;
+    --pharmacy-light: 0.961 0.018 196;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Hind Siliguri", sans-serif;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  body {
+    background: white !important;
+  }
+  .print-area {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 15mm;
+    font-family: "Hind Siliguri", sans-serif;
+  }
+}

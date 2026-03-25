@@ -75,7 +75,8 @@ type Page =
   | "income"
   | "expense"
   | "settings"
-  | "about";
+  | "about"
+  | "patientrecord";
 
 // Pharmacy info now dynamic (see getPharmacyInfo + state in App component)
 interface PharmacySettings {
@@ -96,6 +97,37 @@ function getPharmacyInfo(): PharmacySettings {
     logoUrl:
       "/assets/uploads/screenshot_20260324_212053_contacts-019d2072-a244-71cf-a1f7-dc388bc496ed-1.jpg",
   };
+}
+
+interface PatientRecordEntry {
+  invoiceNumber: string;
+  customerName: string;
+  mobile: string;
+  village: string;
+  neighborhood: string;
+  fatherName: string;
+  diagnosis: string;
+  doctorName: string;
+  prescriptionRef: string;
+  healthNotes: string;
+  date: string;
+  medicines: Array<{
+    name: string;
+    qty: number;
+    unitPrice: number;
+    total: number;
+  }>;
+  totalAmount: number;
+}
+function savePatientRecord(record: PatientRecordEntry) {
+  const records: PatientRecordEntry[] = JSON.parse(
+    localStorage.getItem("pharma_patient_records") || "[]",
+  );
+  records.unshift(record);
+  localStorage.setItem("pharma_patient_records", JSON.stringify(records));
+}
+function getPatientRecords(): PatientRecordEntry[] {
+  return JSON.parse(localStorage.getItem("pharma_patient_records") || "[]");
 }
 
 const VILLAGES: Record<string, string[]> = {
@@ -215,6 +247,12 @@ const navItems: {
     label: "রিপোর্ট",
     icon: <BarChart3 size={18} />,
     color: "#EC4899",
+  },
+  {
+    id: "patientrecord",
+    label: "রোগীর রেকর্ড",
+    icon: <FileText size={18} />,
+    color: "#0F766E",
   },
   {
     id: "settings",
@@ -337,6 +375,49 @@ const EXPENSE_CATEGORIES = [
   "আনলোডিং খরচ",
 ];
 
+const DRUG_CATEGORIES = [
+  "এন্টিবায়োটিক (Antibiotic)",
+  "এন্টিহিস্টামিন (Antihistamine)",
+  "এন্টিফাঙ্গাল (Antifungal)",
+  "এন্টি অ্যানালজেসিক / ব্যথানাশক (Analgesic)",
+  "এন্টিপাইরেটিক / জ্বরনাশক (Antipyretic)",
+  "এন্টাসিড / গ্যাস্ট্রিক (Antacid)",
+  "এন্টিডায়াবেটিক (Antidiabetic)",
+  "এন্টিহাইপারটেনসিভ / উচ্চ রক্তচাপ (Antihypertensive)",
+  "এন্টিআলসার (Antiulcer)",
+  "এন্টিডায়ারিয়াল (Antidiarrheal)",
+  "এন্টিভোমিটিং / বমিনাশক (Antiemetic)",
+  "এন্টিকনভালসেন্ট / খিঁচুনিনাশক (Anticonvulsant)",
+  "এন্টিডিপ্রেসেন্ট (Antidepressant)",
+  "ভিটামিন ও মিনারেল (Vitamin & Mineral)",
+  "আয়রন ও হিমাটিনিক (Iron & Haematinic)",
+  "ক্যালসিয়াম সাপ্লিমেন্ট (Calcium Supplement)",
+  "ডিওয়ার্মিং / কৃমিনাশক (Anthelmintic)",
+  "চর্মরোগের ওষুধ (Dermatological)",
+  "চোখের ড্রপ / Eye Drop (Ophthalmic)",
+  "নাকের ড্রপ (Nasal Preparation)",
+  "ব্রংকোডায়ালেটর / হাঁপানির ওষুধ (Bronchodilator)",
+  "কার্ডিওভাসকুলার (Cardiovascular)",
+  "হরমোন / Hormonal",
+  "থাইরয়েড (Thyroid)",
+  "ব্যথার মলম / ক্রিম (Topical Analgesic)",
+  "অ্যান্টিসেপটিক (Antiseptic)",
+  "ইনজেকশন (Injection/Parenteral)",
+  "স্যালাইন ও আইভি ফ্লুইড (IV Fluid/Saline)",
+  "অন্যান্য (Other)",
+];
+const DEFAULT_PURCHASE_QTY_UNITS = [
+  "Piece",
+  "পাতা",
+  "টি",
+  "Box",
+  "Packet",
+  "Carton",
+  "Bottle",
+  "Vial",
+  "Ampule",
+  "Strip",
+];
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
 function Dashboard({
@@ -2007,6 +2088,10 @@ function SalesPage({
   const [village, setVillage] = useState("বালিগাঁও");
   const [neighborhood, setNeighborhood] = useState("");
   const [fatherName, setFatherName] = useState("");
+  const [diagnosis, setDiagnosis] = useState("");
+  const [doctorName, setDoctorName] = useState("");
+  const [prescriptionRef, setPrescriptionRef] = useState("");
+  const [healthNotes, setHealthNotes] = useState("");
   const [paymentStatus, setPaymentStatus] = useState<"নগদ" | "বাকি">("নগদ");
   const [rows, setRows] = useState<MedRow[]>([
     { rowId: "1", medId: "", qty: "1" },
@@ -2136,12 +2221,42 @@ function SalesPage({
       }
 
       toast.success("বিক্রয় সম্পন্ন হয়েছে");
+      // Save patient record
+      const patientRecord: PatientRecordEntry = {
+        invoiceNumber: String(invoiceNumber),
+        customerName: customerName.trim(),
+        mobile: mobile.trim(),
+        village,
+        neighborhood,
+        fatherName: fatherName.trim(),
+        diagnosis: diagnosis.trim(),
+        doctorName: doctorName.trim(),
+        prescriptionRef: prescriptionRef.trim(),
+        healthNotes: healthNotes.trim(),
+        date: new Date().toISOString(),
+        medicines: filledRows.map((row) => {
+          const med = medicines.find((m) => String(m.id) === row.medId)!;
+          const qty = Number.parseInt(row.qty);
+          return {
+            name: med.name,
+            qty,
+            unitPrice: Number(med.sellingPrice),
+            total: Number(med.sellingPrice) * qty,
+          };
+        }),
+        totalAmount: grandTotal,
+      };
+      savePatientRecord(patientRecord);
       setCustomerName("");
       setMobile("");
       setVillage("বালিগাঁও");
       setNeighborhood("");
       setFatherName("");
       setPaymentStatus("নগদ");
+      setDiagnosis("");
+      setDoctorName("");
+      setPrescriptionRef("");
+      setHealthNotes("");
       setRows([{ rowId: "1", medId: "", qty: "1" }]);
       onRefresh();
     } catch (e) {
@@ -2243,6 +2358,117 @@ function SalesPage({
             </div>
           </div>
         </div>
+
+        {/* Patient Digital Record */}
+        <div>
+          <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+            <span style={{ color: "#0F766E" }}>🏥 রোগীর ডিজিটাল রেকর্ড</span>
+            <span className="text-xs text-muted-foreground">(ঐচ্ছিক)</span>
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <Label className="flex items-center gap-1">
+                <span style={{ color: "#DC2626" }}>🔴</span> রোগ নির্ণয় / সমস্যার
+                বিবরণ
+              </Label>
+              <Input
+                data-ocid="sales.diagnosis.input"
+                value={diagnosis}
+                onChange={(e) => setDiagnosis(e.target.value)}
+                placeholder="যেমন: জ্বর, মাথাব্যথা, ডায়াবেটিস, উচ্চ রক্তচাপ"
+              />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1">
+                <span style={{ color: "#2563EB" }}>🩺</span> ডাক্তারের নাম
+              </Label>
+              <Input
+                data-ocid="sales.doctor.input"
+                value={doctorName}
+                onChange={(e) => setDoctorName(e.target.value)}
+                placeholder="ডাক্তারের নাম লিখুন"
+              />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1">
+                <span style={{ color: "#7C3AED" }}>📋</span> প্রেসক্রিপশন রেফারেন্স
+                নম্বর
+              </Label>
+              <Input
+                data-ocid="sales.prescription.input"
+                value={prescriptionRef}
+                onChange={(e) => setPrescriptionRef(e.target.value)}
+                placeholder="প্রেসক্রিপশন নম্বর (ঐচ্ছিক)"
+              />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1">
+                <span style={{ color: "#D97706" }}>⚠️</span> রোগীর স্বাস্থ্য নোট
+              </Label>
+              <Input
+                data-ocid="sales.healthnotes.input"
+                value={healthNotes}
+                onChange={(e) => setHealthNotes(e.target.value)}
+                placeholder="যেমন: ডায়াবেটিস রোগী, গর্ভবতী, শিশু, অ্যালার্জি আছে"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Medicine History */}
+        {(customerName.trim() || mobile.trim()) &&
+          (() => {
+            const allRecords = getPatientRecords();
+            const pastRecords = allRecords.filter(
+              (r) =>
+                (customerName.trim() &&
+                  r.customerName
+                    .toLowerCase()
+                    .includes(customerName.toLowerCase())) ||
+                (mobile.trim() && r.mobile === mobile.trim()),
+            );
+            if (pastRecords.length === 0) return null;
+            return (
+              <div
+                className="rounded-xl border-2 p-4"
+                style={{ borderColor: "#0F766E33", background: "#0F766E08" }}
+              >
+                <h3
+                  className="text-sm font-semibold mb-3 flex items-center gap-2"
+                  style={{ color: "#0F766E" }}
+                >
+                  📖 ওষুধের ইতিহাস ({pastRecords.length}টি রেকর্ড)
+                </h3>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {pastRecords.slice(0, 10).map((r) => (
+                    <div
+                      key={r.invoiceNumber}
+                      className="text-xs rounded-lg p-2 bg-card border"
+                    >
+                      <div className="flex justify-between font-semibold">
+                        <span>
+                          {r.date
+                            ? new Date(r.date).toLocaleDateString("bn-BD")
+                            : "—"}
+                        </span>
+                        <span style={{ color: "#0F766E" }}>
+                          ৳{r.totalAmount.toLocaleString("bn-BD")}
+                        </span>
+                      </div>
+                      {r.diagnosis && (
+                        <p className="text-muted-foreground">
+                          রোগ: {r.diagnosis}
+                        </p>
+                      )}
+                      <p className="text-muted-foreground">
+                        {r.medicines.map((m) => m.name).join(", ")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* Medicine Rows */}
         <div>
@@ -3048,7 +3274,7 @@ function PurchasesPage({
   const [brand, setBrand] = useState("");
   const [itemType, setItemType] = useState("Tablet");
   const [qty, setQty] = useState("1");
-  const [qtyUnit, setQtyUnit] = useState("Piece");
+
   const [costPrice, setCostPrice] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [supplier, setSupplier] = useState("");
@@ -3082,8 +3308,38 @@ function PurchasesPage({
     }
   });
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [units, setUnits] = useState<string[]>(getQtyUnits());
-  const [newUnit, setNewUnit] = useState("");
+  const [medicineUnit, setMedicineUnit] = useState("mg");
+  const [medicineUnits, setMedicineUnits] = useState<string[]>(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem("medicineUnits") || "null") || [
+          "mg",
+          "ml",
+          "mcg",
+          "tablet",
+          "capsule",
+          "IU",
+          "g",
+        ]
+      );
+    } catch {
+      return ["mg", "ml", "mcg", "tablet", "capsule", "IU", "g"];
+    }
+  });
+  const [newMedicineUnit, setNewMedicineUnit] = useState("");
+  const [purchaseQtyUnit, setPurchaseQtyUnit] = useState("Piece");
+  const [purchaseQtyUnits, setPurchaseQtyUnits] = useState<string[]>(() => {
+    try {
+      return (
+        JSON.parse(localStorage.getItem("purchaseQtyUnits") || "null") ||
+        DEFAULT_PURCHASE_QTY_UNITS
+      );
+    } catch {
+      return DEFAULT_PURCHASE_QTY_UNITS;
+    }
+  });
+  const [newPurchaseQtyUnit, setNewPurchaseQtyUnit] = useState("");
+  const [drugCategory, setDrugCategory] = useState(DRUG_CATEGORIES[0]);
 
   const suggestions =
     medicineName.trim().length > 0
@@ -3153,13 +3409,23 @@ function PurchasesPage({
           .slice(0, 6)
       : [];
 
-  function addUnit() {
-    const v = newUnit.trim();
+  function addMedicineUnit() {
+    const v = newMedicineUnit.trim();
     if (!v) return;
-    saveQtyUnit(v);
-    setUnits(getQtyUnits());
-    setQtyUnit(v);
-    setNewUnit("");
+    const updated = [...medicineUnits, v];
+    setMedicineUnits(updated);
+    localStorage.setItem("medicineUnits", JSON.stringify(updated));
+    setMedicineUnit(v);
+    setNewMedicineUnit("");
+  }
+  function addPurchaseQtyUnit() {
+    const v = newPurchaseQtyUnit.trim();
+    if (!v) return;
+    const updated = [...purchaseQtyUnits, v];
+    setPurchaseQtyUnits(updated);
+    localStorage.setItem("purchaseQtyUnits", JSON.stringify(updated));
+    setPurchaseQtyUnit(v);
+    setNewPurchaseQtyUnit("");
   }
 
   async function handleSubmit() {
@@ -3167,7 +3433,7 @@ function PurchasesPage({
       toast.error("ওষুধের নাম দিন");
       return;
     }
-    if (!qty || Number.parseInt(qty) <= 0) {
+    if (!qty || !qty.trim()) {
       toast.error("পরিমাণ দিন");
       return;
     }
@@ -3238,8 +3504,9 @@ function PurchasesPage({
       setCompanyName("");
       setNewCompanyInput("");
       setItemType("Tablet");
-      setQty("1");
-      setQtyUnit("Piece");
+      setQty("");
+      setPurchaseQtyUnit("Piece");
+      setMedicineUnit("mg");
       setCostPrice("");
       setSellingPrice("");
       setSupplier("");
@@ -3247,6 +3514,7 @@ function PurchasesPage({
       setSupplierMobile("");
       setExpiryDate("");
       setMinStockAlert("10");
+      setDrugCategory(DRUG_CATEGORIES[0]);
       onRefresh();
     } catch (e) {
       toast.error(`ত্রুটি: ${String(e)}`);
@@ -3393,9 +3661,68 @@ function PurchasesPage({
         <div className="bg-card rounded-lg shadow-card p-5">
           <h2 className="font-semibold mb-4">নতুন ক্রয় এন্ট্রি</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {/* Medicine name with autocomplete */}
+            {/* 1. Drug Category */}
+            <div>
+              <Label
+                className="flex items-center gap-1.5"
+                style={{ color: "#7c3aed" }}
+              >
+                <span>🏷</span> ঔষধের শ্রেণী (Drug Category)
+              </Label>
+              <Select value={drugCategory} onValueChange={setDrugCategory}>
+                <SelectTrigger
+                  data-ocid="purchases.drugCategory.select"
+                  style={{ borderColor: "#7c3aed33" }}
+                >
+                  <SelectValue placeholder="শ্রেণী নির্বাচন করুন" />
+                </SelectTrigger>
+                <SelectContent
+                  className="max-h-60 overflow-y-auto"
+                  position="popper"
+                  side="bottom"
+                  avoidCollisions={true}
+                  sideOffset={4}
+                  align="start"
+                >
+                  {DRUG_CATEGORIES.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 2. Medicine Type */}
+            <div>
+              <Label>ঔষধের ধরন (Medicine Type)</Label>
+              <Select value={itemType} onValueChange={setItemType}>
+                <SelectTrigger data-ocid="purchases.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    "Tablet",
+                    "Syrup",
+                    "Capsule",
+                    "Injection",
+                    "Cream",
+                    "Drop",
+                    "Powder",
+                    "Inhaler",
+                    "Suppository",
+                  ].map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* 3. Generic Name with autocomplete */}
             <div className="relative lg:col-span-2">
-              <Label>ঔষধের নাম (Generic Name) *</Label>
+              <Label>ঔষধের জেনেরিক নেম (Generic Name) *</Label>
               <Input
                 data-ocid="purchases.input"
                 value={medicineName}
@@ -3427,17 +3754,9 @@ function PurchasesPage({
               )}
             </div>
 
+            {/* 4. Brand Name */}
             <div>
-              <Label>Strength/Size</Label>
-              <Input
-                value={strength}
-                onChange={(e) => setStrength(e.target.value)}
-                placeholder="যেমন: 500mg, 100ml"
-              />
-            </div>
-
-            <div>
-              <Label>ব্র্যান্ড নেম</Label>
+              <Label>ঔষধের ব্র্যান্ড নেম</Label>
               <Select
                 value={brand}
                 onValueChange={(v) => {
@@ -3477,8 +3796,9 @@ function PurchasesPage({
               </Select>
             </div>
 
+            {/* 5. Company Name (auto-fill) */}
             <div>
-              <Label>কোম্পানি নেম</Label>
+              <Label>ঔষধের কোম্পানি (Company Name)</Label>
               <Input
                 value={companyName}
                 readOnly
@@ -3487,75 +3807,100 @@ function PurchasesPage({
               />
             </div>
 
+            {/* 6. Strength/Size */}
             <div>
-              <Label>ধরন</Label>
-              <Select value={itemType} onValueChange={setItemType}>
-                <SelectTrigger data-ocid="purchases.select">
+              <Label>স্ট্রেন্থ বা সাইজ (Strength/Size)</Label>
+              <Input
+                value={strength}
+                onChange={(e) => setStrength(e.target.value)}
+                placeholder="যেমন: 500, 250, 5"
+              />
+            </div>
+
+            {/* 7. Unit */}
+            <div>
+              <Label>একক (Unit)</Label>
+              <Select value={medicineUnit} onValueChange={setMedicineUnit}>
+                <SelectTrigger data-ocid="purchases.unit.select">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Tablet",
-                    "Syrup",
-                    "Capsule",
-                    "Injection",
-                    "Cream",
-                    "Drop",
-                    "Powder",
-                    "Inhaler",
-                    "Suppository",
-                  ].map((t) => (
-                    <SelectItem key={t} value={t}>
-                      {t}
+                  {medicineUnits.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
                     </SelectItem>
                   ))}
+                  <div className="flex gap-1 p-2 border-t">
+                    <input
+                      className="flex-1 text-sm border rounded px-2 py-1"
+                      placeholder="নতুন একক"
+                      value={newMedicineUnit}
+                      onChange={(e) => setNewMedicineUnit(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addMedicineUnit()}
+                    />
+                    <button
+                      type="button"
+                      className="text-xs bg-primary text-primary-foreground px-2 rounded"
+                      onClick={addMedicineUnit}
+                    >
+                      +
+                    </button>
+                  </div>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* 8. Quantity (free text) */}
             <div>
-              <Label>পরিমাণ ও ইউনিট</Label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  min="1"
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                  className="w-24"
-                />
-                <Select value={qtyUnit} onValueChange={setQtyUnit}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {units.map((u) => (
-                      <SelectItem key={u} value={u}>
-                        {u}
-                      </SelectItem>
-                    ))}
-                    <div className="flex gap-1 p-2 border-t">
-                      <input
-                        className="flex-1 text-sm border rounded px-2 py-1"
-                        placeholder="নতুন ইউনিট"
-                        value={newUnit}
-                        onChange={(e) => setNewUnit(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && addUnit()}
-                      />
-                      <button
-                        type="button"
-                        className="text-xs bg-primary text-primary-foreground px-2 rounded"
-                        onClick={addUnit}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </SelectContent>
-                </Select>
-              </div>
+              <Label>পরিমাণ (Quantity)</Label>
+              <Input
+                type="text"
+                value={qty}
+                onChange={(e) => setQty(e.target.value)}
+                placeholder="যেমন: ২ বক্স ১০ পাতা, ৩ কার্টুন, ৪ প্যাকেট"
+              />
             </div>
 
+            {/* 9. ইউনিট (Purchase Quantity Unit) */}
             <div>
-              <Label>ক্রয়মূল্য / Cost Price (৳)</Label>
+              <Label>ইউনিট (Unit)</Label>
+              <Select
+                value={purchaseQtyUnit}
+                onValueChange={setPurchaseQtyUnit}
+              >
+                <SelectTrigger data-ocid="purchases.purchase_qty_unit.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {purchaseQtyUnits.map((u) => (
+                    <SelectItem key={u} value={u}>
+                      {u}
+                    </SelectItem>
+                  ))}
+                  <div className="flex gap-1 p-2 border-t">
+                    <input
+                      className="flex-1 text-sm border rounded px-2 py-1"
+                      placeholder="নতুন ইউনিট"
+                      value={newPurchaseQtyUnit}
+                      onChange={(e) => setNewPurchaseQtyUnit(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && addPurchaseQtyUnit()
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="text-xs bg-primary text-primary-foreground px-2 rounded"
+                      onClick={addPurchaseQtyUnit}
+                    >
+                      +
+                    </button>
+                  </div>
+                </SelectContent>
+              </Select>
+            </div>
+            {/* 9. Purchase Price */}
+            <div>
+              <Label>ক্রয় মূল্য / Purchase Price (৳)</Label>
               <Input
                 type="number"
                 value={costPrice}
@@ -5556,6 +5901,287 @@ function AboutPage() {
   );
 }
 
+// ─── PatientRecordPage ──────────────────────────────────────────────────────
+
+function PatientRecordPage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [printRecord, setPrintRecord] = useState<PatientRecordEntry[] | null>(
+    null,
+  );
+
+  const allRecords = getPatientRecords();
+
+  const filtered = searchQuery.trim()
+    ? allRecords.filter(
+        (r) =>
+          r.customerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          r.mobile.includes(searchQuery.trim()),
+      )
+    : allRecords;
+
+  const grouped: Record<string, PatientRecordEntry[]> = {};
+  for (const r of filtered) {
+    const key = `${r.customerName}|${r.mobile}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(r);
+  }
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold" style={{ color: "#0F766E" }}>
+        রোগীর রেকর্ড
+      </h1>
+
+      <div className="bg-card rounded-lg shadow-card p-4">
+        <div className="flex gap-3 items-center">
+          <Input
+            data-ocid="patientrecord.search.input"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="রোগীর নাম বা মোবাইল নম্বর দিয়ে সার্চ করুন..."
+            className="max-w-md"
+          />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSearchQuery("")}
+              data-ocid="patientrecord.clear.button"
+            >
+              ✕ মুছুন
+            </Button>
+          )}
+        </div>
+        <p className="text-xs text-muted-foreground mt-2">
+          মোট {Object.keys(grouped).length} জন রোগীর রেকর্ড পাওয়া গেছে
+        </p>
+      </div>
+
+      {Object.keys(grouped).length === 0 && (
+        <div
+          className="text-center py-12 text-muted-foreground"
+          data-ocid="patientrecord.empty_state"
+        >
+          <p>কোনো রেকর্ড পাওয়া যায়নি।</p>
+          <p className="text-xs mt-1">
+            বিক্রয় করার সময় রোগীর তথ্য দিলে এখানে দেখা যাবে।
+          </p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {Object.entries(grouped).map(([key, records], idx) => {
+          const first = records[0];
+          const totalSpent = records.reduce((s, r) => s + r.totalAmount, 0);
+          return (
+            <div
+              key={key}
+              data-ocid={`patientrecord.item.${idx + 1}`}
+              className="bg-card rounded-xl border-2 shadow-sm overflow-hidden"
+              style={{ borderColor: "#0F766E22" }}
+            >
+              <div
+                className="p-4 flex items-start justify-between"
+                style={{ background: "#0F766E0D" }}
+              >
+                <div>
+                  <h3 className="font-bold text-lg">
+                    {first.customerName || "—"}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    📞 {first.mobile || "—"} &nbsp;|&nbsp; 📍 {first.village}{" "}
+                    {first.neighborhood}
+                  </p>
+                  {first.fatherName && (
+                    <p className="text-xs text-muted-foreground">
+                      পিতা: {first.fatherName}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground">
+                    মোট {records.length}টি ভিজিট
+                  </p>
+                  <p className="font-bold text-lg" style={{ color: "#0F766E" }}>
+                    ৳{totalSpent.toLocaleString("bn-BD")}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-1 text-xs"
+                    data-ocid={`patientrecord.print.button.${idx + 1}`}
+                    onClick={() => {
+                      setPrintRecord(records);
+                      setTimeout(() => window.print(), 300);
+                    }}
+                  >
+                    🖨️ প্রিন্ট
+                  </Button>
+                </div>
+              </div>
+              <div className="divide-y">
+                {records.map((r) => (
+                  <div key={r.invoiceNumber} className="p-4 text-sm">
+                    <div className="flex justify-between mb-2">
+                      <span className="font-semibold text-muted-foreground">
+                        {r.date
+                          ? new Date(r.date).toLocaleDateString("bn-BD")
+                          : "—"}
+                        &nbsp;— Invoice #{r.invoiceNumber.slice(-6)}
+                      </span>
+                      <span className="font-bold" style={{ color: "#0F766E" }}>
+                        ৳{r.totalAmount.toLocaleString("bn-BD")}
+                      </span>
+                    </div>
+                    {r.diagnosis && (
+                      <p className="text-red-600 text-xs mb-1">
+                        🔴 রোগ: {r.diagnosis}
+                      </p>
+                    )}
+                    {r.doctorName && (
+                      <p className="text-blue-600 text-xs mb-1">
+                        🩺 ডাক্তার: {r.doctorName}{" "}
+                        {r.prescriptionRef && `(Rx: ${r.prescriptionRef})`}
+                      </p>
+                    )}
+                    {r.healthNotes && (
+                      <p className="text-amber-600 text-xs mb-1">
+                        ⚠️ নোট: {r.healthNotes}
+                      </p>
+                    )}
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {r.medicines.map((m) => (
+                        <span
+                          key={m.name}
+                          className="text-xs rounded-full px-2 py-0.5"
+                          style={{ background: "#0F766E15", color: "#0F766E" }}
+                        >
+                          {m.name} × {m.qty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {printRecord && printRecord.length > 0 && (
+        <div className="hidden print:block">
+          <div
+            style={{
+              textAlign: "center",
+              borderBottom: "2px solid #0F3A3D",
+              paddingBottom: 12,
+              marginBottom: 16,
+            }}
+          >
+            <h1 style={{ fontSize: 22, fontWeight: 700, color: "#0F3A3D" }}>
+              সাওম ফার্মেসি
+            </h1>
+            <p style={{ fontSize: 12 }}>বালিগাঁও, লাখাই, হবিগঞ্জ</p>
+          </div>
+          <h2
+            style={{
+              fontSize: 18,
+              fontWeight: 700,
+              marginBottom: 8,
+              color: "#0F766E",
+            }}
+          >
+            রোগীর সম্পূর্ণ রেকর্ড
+          </h2>
+          <div style={{ marginBottom: 12, fontSize: 13 }}>
+            <p>
+              <strong>নাম:</strong> {printRecord[0].customerName}
+            </p>
+            <p>
+              <strong>মোবাইল:</strong> {printRecord[0].mobile}
+            </p>
+            <p>
+              <strong>ঠিকানা:</strong> {printRecord[0].village}{" "}
+              {printRecord[0].neighborhood}
+            </p>
+          </div>
+          {printRecord.map((r) => (
+            <div
+              key={r.invoiceNumber}
+              style={{
+                marginBottom: 16,
+                borderBottom: "1px solid #ddd",
+                paddingBottom: 12,
+              }}
+            >
+              <p style={{ fontWeight: 600 }}>
+                {r.date ? new Date(r.date).toLocaleDateString("bn-BD") : "—"} |
+                Invoice #{r.invoiceNumber.slice(-6)}
+              </p>
+              {r.diagnosis && (
+                <p style={{ fontSize: 12 }}>রোগ: {r.diagnosis}</p>
+              )}
+              {r.doctorName && (
+                <p style={{ fontSize: 12 }}>
+                  ডাক্তার: {r.doctorName}{" "}
+                  {r.prescriptionRef && `(Rx: ${r.prescriptionRef})`}
+                </p>
+              )}
+              {r.healthNotes && (
+                <p style={{ fontSize: 12 }}>নোট: {r.healthNotes}</p>
+              )}
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  marginTop: 6,
+                  fontSize: 12,
+                }}
+              >
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #ccc" }}>
+                    <th style={{ textAlign: "left", padding: "2px 4px" }}>
+                      ওষুধ
+                    </th>
+                    <th style={{ textAlign: "right", padding: "2px 4px" }}>
+                      পরিমাণ
+                    </th>
+                    <th style={{ textAlign: "right", padding: "2px 4px" }}>
+                      একক মূল্য
+                    </th>
+                    <th style={{ textAlign: "right", padding: "2px 4px" }}>
+                      মোট
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {r.medicines.map((m) => (
+                    <tr key={m.name}>
+                      <td style={{ padding: "2px 4px" }}>{m.name}</td>
+                      <td style={{ textAlign: "right", padding: "2px 4px" }}>
+                        {m.qty}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "2px 4px" }}>
+                        ৳{m.unitPrice}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "2px 4px" }}>
+                        ৳{m.total}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p style={{ textAlign: "right", fontWeight: 600, marginTop: 4 }}>
+                মোট: ৳{r.totalAmount.toLocaleString("bn-BD")}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function App() {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -5693,6 +6319,7 @@ export default function App() {
             />
           )}
           {page === "about" && <AboutPage />}
+          {page === "patientrecord" && <PatientRecordPage />}
         </main>
       </div>
     </div>

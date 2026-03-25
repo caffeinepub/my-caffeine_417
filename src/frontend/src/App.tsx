@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertTriangle,
   BarChart3,
@@ -318,6 +318,19 @@ function Sidebar({
   );
 }
 
+const INCOME_CATEGORIES = [
+  "ঔষধ বিক্রি বাবদ টাকা",
+  "ইনজেকশন পুশিং চার্জ",
+  "ব্যান্ডেজ চার্জ",
+  "শিলায় বাবদ চার্জ",
+];
+const EXPENSE_CATEGORIES = [
+  "ঔষধ ক্রয় বাবদ টাকা",
+  "ওষুধ আনতে গিয়ে গাড়ি ভাড়া",
+  "লোডিং খরচ",
+  "আনলোডিং খরচ",
+];
+
 // ─── Dashboard ──────────────────────────────────────────────────────────────
 
 function Dashboard({
@@ -377,90 +390,557 @@ function Dashboard({
     },
   ];
 
+  // Income/Expense state for dashboard tabs
+  const [incomeRecords, setIncomeRecords] = useState<
+    Array<{
+      id: string;
+      date: string;
+      amount: number;
+      description: string;
+      category?: string;
+    }>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("incomeRecords") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [expenseRecords, setExpenseRecords] = useState<
+    Array<{
+      id: string;
+      date: string;
+      amount: number;
+      description: string;
+      category?: string;
+    }>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("expenseRecords") || "[]");
+    } catch {
+      return [];
+    }
+  });
+
+  const [incDate, setIncDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [incCat, setIncCat] = useState(INCOME_CATEGORIES[0]);
+  const [incAmt, setIncAmt] = useState("");
+  const [incDesc, setIncDesc] = useState("");
+
+  const [expDate, setExpDate] = useState(
+    () => new Date().toISOString().split("T")[0],
+  );
+  const [expCat, setExpCat] = useState(EXPENSE_CATEGORIES[0]);
+  const [expAmt, setExpAmt] = useState("");
+  const [expDesc, setExpDesc] = useState("");
+
+  function saveIncome() {
+    if (!incAmt || Number(incAmt) <= 0) {
+      toast.error("পরিমাণ দিন");
+      return;
+    }
+    const newRec = {
+      id: String(Date.now()),
+      date: incDate,
+      amount: Number(incAmt),
+      description: incDesc.trim(),
+      category: incCat,
+    };
+    const updated = [newRec, ...incomeRecords];
+    setIncomeRecords(updated);
+    localStorage.setItem("incomeRecords", JSON.stringify(updated));
+    setIncAmt("");
+    setIncDesc("");
+    toast.success("আয় সংরক্ষণ হয়েছে");
+  }
+
+  function saveExpense() {
+    if (!expAmt || Number(expAmt) <= 0) {
+      toast.error("পরিমাণ দিন");
+      return;
+    }
+    const newRec = {
+      id: String(Date.now()),
+      date: expDate,
+      amount: Number(expAmt),
+      description: expDesc.trim(),
+      category: expCat,
+    };
+    const updated = [newRec, ...expenseRecords];
+    setExpenseRecords(updated);
+    localStorage.setItem("expenseRecords", JSON.stringify(updated));
+    setExpAmt("");
+    setExpDesc("");
+    toast.success("ব্যয় সংরক্ষণ হয়েছে");
+  }
+
+  const totalIncome = incomeRecords.reduce((s, r) => s + r.amount, 0);
+  const totalExpense = expenseRecords.reduce((s, r) => s + r.amount, 0);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">ড্যাশবোর্ড</h1>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpiCards.map((card) => (
-          <div
-            key={card.label}
-            className="bg-card rounded-lg p-4 shadow-card flex items-center gap-3"
+      <Tabs defaultValue="summary">
+        <TabsList className="mb-4 bg-card shadow-card border border-border">
+          <TabsTrigger
+            value="summary"
+            className="flex items-center gap-1.5 data-[state=active]:bg-blue-50"
+            data-ocid="dashboard.summary.tab"
           >
-            <div
-              className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0"
-              style={{ backgroundColor: card.color }}
+            <LayoutDashboard size={15} style={{ color: "#4F8EF7" }} />
+            <span
+              style={{ color: "#4F8EF7" }}
+              className="font-semibold text-sm"
             >
-              {card.icon}
+              সারসংক্ষেপ
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="income"
+            className="flex items-center gap-1.5 data-[state=active]:bg-cyan-50"
+            data-ocid="dashboard.income.tab"
+          >
+            <TrendingUp size={15} style={{ color: "#06B6D4" }} />
+            <span
+              style={{ color: "#06B6D4" }}
+              className="font-semibold text-sm"
+            >
+              আয়
+            </span>
+          </TabsTrigger>
+          <TabsTrigger
+            value="expense"
+            className="flex items-center gap-1.5 data-[state=active]:bg-amber-50"
+            data-ocid="dashboard.expense.tab"
+          >
+            <TrendingDown size={15} style={{ color: "#F59E0B" }} />
+            <span
+              style={{ color: "#F59E0B" }}
+              className="font-semibold text-sm"
+            >
+              ব্যয়
+            </span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* সারসংক্ষেপ Tab */}
+        <TabsContent value="summary" className="space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {kpiCards.map((card) => (
+              <div
+                key={card.label}
+                className="bg-card rounded-lg p-4 shadow-card flex items-center gap-3"
+              >
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                  style={{ backgroundColor: card.color }}
+                >
+                  {card.icon}
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs">{card.label}</p>
+                  <p className="font-bold text-lg leading-tight">
+                    {card.value}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-6">
+            <div className="bg-card rounded-lg shadow-card p-4">
+              <h2 className="font-semibold mb-3 flex items-center gap-2 text-destructive">
+                <AlertTriangle size={16} /> কম স্টক সতর্কতা
+              </h2>
+              {lowStock.length === 0 ? (
+                <p className="text-muted-foreground text-sm">কোনো সতর্কতা নেই।</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ওষুধ</TableHead>
+                      <TableHead>স্টক</TableHead>
+                      <TableHead>সর্বনিম্ন</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {lowStock.slice(0, 5).map((m) => (
+                      <TableRow key={String(m.id)} className="bg-red-50">
+                        <TableCell className="font-medium">{m.name}</TableCell>
+                        <TableCell className="text-destructive font-bold">
+                          {String(m.quantity)} {getQtyUnitForMedicine(m.name)}
+                        </TableCell>
+                        <TableCell>{String(m.minStockAlert)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
-            <div>
-              <p className="text-muted-foreground text-xs">{card.label}</p>
-              <p className="font-bold text-lg leading-tight">{card.value}</p>
+
+            <div className="bg-card rounded-lg shadow-card p-4">
+              <h2 className="font-semibold mb-3">সাম্প্রতিক বিক্রয়</h2>
+              {recent5.length === 0 ? (
+                <p className="text-muted-foreground text-sm">কোনো বিক্রয় নেই।</p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>ওষুধ</TableHead>
+                      <TableHead>পরিমাণ</TableHead>
+                      <TableHead>মোট</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {recent5.map((s) => (
+                      <TableRow key={String(s.id)}>
+                        <TableCell>{s.medicineName}</TableCell>
+                        <TableCell>{String(s.quantity)}</TableCell>
+                        <TableCell>{taka(Number(s.totalPrice))}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </div>
-        ))}
-      </div>
+        </TabsContent>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Low Stock Alert */}
-        <div className="bg-card rounded-lg shadow-card p-4">
-          <h2 className="font-semibold mb-3 flex items-center gap-2 text-destructive">
-            <AlertTriangle size={16} /> কম স্টক সতর্কতা
-          </h2>
-          {lowStock.length === 0 ? (
-            <p className="text-muted-foreground text-sm">কোনো সতর্কতা নেই।</p>
-          ) : (
+        {/* আয় Tab */}
+        <TabsContent value="income" className="space-y-5">
+          <div
+            className="rounded-xl p-5 flex items-center gap-4 text-white"
+            style={{ background: "linear-gradient(135deg, #06B6D4, #0891B2)" }}
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+              <TrendingUp size={26} className="text-white" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm">মোট আয়</p>
+              <p className="text-3xl font-bold">{taka(totalIncome)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {INCOME_CATEGORIES.map((cat) => {
+              const catTotal = incomeRecords
+                .filter((r) => (r.category || INCOME_CATEGORIES[0]) === cat)
+                .reduce((s, r) => s + r.amount, 0);
+              return (
+                <div
+                  key={cat}
+                  className="bg-card rounded-lg p-3 border-l-4 shadow-card"
+                  style={{ borderLeftColor: "#06B6D4" }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp size={14} style={{ color: "#06B6D4" }} />
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {cat}
+                    </p>
+                  </div>
+                  <p
+                    className="font-bold text-base"
+                    style={{ color: "#06B6D4" }}
+                  >
+                    {taka(catTotal)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-card rounded-lg shadow-card p-4">
+            <h2
+              className="font-semibold mb-3 flex items-center gap-2"
+              style={{ color: "#06B6D4" }}
+            >
+              <Plus size={16} /> নতুন আয় এন্ট্রি
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <Label className="text-xs">তারিখ</Label>
+                <Input
+                  type="date"
+                  value={incDate}
+                  onChange={(e) => setIncDate(e.target.value)}
+                  data-ocid="dashboard.income.input"
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">বিভাগ</Label>
+                <select
+                  value={incCat}
+                  onChange={(e) => setIncCat(e.target.value)}
+                  data-ocid="dashboard.income.select"
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  {INCOME_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">পরিমাণ (৳)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={incAmt}
+                  onChange={(e) => setIncAmt(e.target.value)}
+                  placeholder="যেমন: 5000"
+                  data-ocid="dashboard.income.input"
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">বিবরণ (ঐচ্ছিক)</Label>
+                <Input
+                  value={incDesc}
+                  onChange={(e) => setIncDesc(e.target.value)}
+                  placeholder="বিস্তারিত"
+                  data-ocid="dashboard.income.input"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={saveIncome}
+              data-ocid="dashboard.income.submit_button"
+              className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-md text-white text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "#06B6D4" }}
+            >
+              <Plus size={15} /> সংরক্ষণ করুন
+            </button>
+          </div>
+
+          <div className="bg-card rounded-lg shadow-card overflow-auto">
+            <div
+              className="px-4 pt-4 pb-2 font-semibold text-sm"
+              style={{ color: "#06B6D4" }}
+            >
+              সাম্প্রতিক এন্ট্রি (সর্বশেষ ১০টি)
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>ওষুধ</TableHead>
-                  <TableHead>স্টক</TableHead>
-                  <TableHead>সর্বনিম্ন</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lowStock.slice(0, 5).map((m) => (
-                  <TableRow key={String(m.id)} className="bg-red-50">
-                    <TableCell className="font-medium">{m.name}</TableCell>
-                    <TableCell className="text-destructive font-bold">
-                      {String(m.quantity)} {getQtyUnitForMedicine(m.name)}
-                    </TableCell>
-                    <TableCell>{String(m.minStockAlert)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </div>
-
-        {/* Recent Sales */}
-        <div className="bg-card rounded-lg shadow-card p-4">
-          <h2 className="font-semibold mb-3">সাম্প্রতিক বিক্রয়</h2>
-          {recent5.length === 0 ? (
-            <p className="text-muted-foreground text-sm">কোনো বিক্রয় নেই।</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>ওষুধ</TableHead>
+                  <TableHead>তারিখ</TableHead>
+                  <TableHead>বিভাগ</TableHead>
+                  <TableHead>বিবরণ</TableHead>
                   <TableHead>পরিমাণ</TableHead>
-                  <TableHead>মোট</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {recent5.map((s) => (
-                  <TableRow key={String(s.id)}>
-                    <TableCell>{s.medicineName}</TableCell>
-                    <TableCell>{String(s.quantity)}</TableCell>
-                    <TableCell>{taka(Number(s.totalPrice))}</TableCell>
+                {incomeRecords.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center text-muted-foreground py-6"
+                      data-ocid="dashboard.income.empty_state"
+                    >
+                      কোনো আয় এন্ট্রি নেই।
+                    </TableCell>
+                  </TableRow>
+                )}
+                {incomeRecords.slice(0, 10).map((r, i) => (
+                  <TableRow
+                    key={r.id}
+                    data-ocid={`dashboard.income.item.${i + 1}`}
+                  >
+                    <TableCell className="text-sm">{r.date}</TableCell>
+                    <TableCell
+                      className="text-sm font-medium"
+                      style={{ color: "#06B6D4" }}
+                    >
+                      {r.category || INCOME_CATEGORIES[0]}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.description || "—"}
+                    </TableCell>
+                    <TableCell
+                      className="font-semibold text-sm"
+                      style={{ color: "#0891B2" }}
+                    >
+                      {taka(r.amount)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
-          )}
-        </div>
-      </div>
+          </div>
+        </TabsContent>
+
+        {/* ব্যয় Tab */}
+        <TabsContent value="expense" className="space-y-5">
+          <div
+            className="rounded-xl p-5 flex items-center gap-4 text-white"
+            style={{ background: "linear-gradient(135deg, #F59E0B, #D97706)" }}
+          >
+            <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+              <TrendingDown size={26} className="text-white" />
+            </div>
+            <div>
+              <p className="text-white/80 text-sm">মোট ব্যয়</p>
+              <p className="text-3xl font-bold">{taka(totalExpense)}</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {EXPENSE_CATEGORIES.map((cat) => {
+              const catTotal = expenseRecords
+                .filter((r) => (r.category || EXPENSE_CATEGORIES[0]) === cat)
+                .reduce((s, r) => s + r.amount, 0);
+              return (
+                <div
+                  key={cat}
+                  className="bg-card rounded-lg p-3 border-l-4 shadow-card"
+                  style={{ borderLeftColor: "#F59E0B" }}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingDown size={14} style={{ color: "#F59E0B" }} />
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {cat}
+                    </p>
+                  </div>
+                  <p
+                    className="font-bold text-base"
+                    style={{ color: "#D97706" }}
+                  >
+                    {taka(catTotal)}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-card rounded-lg shadow-card p-4">
+            <h2
+              className="font-semibold mb-3 flex items-center gap-2"
+              style={{ color: "#F59E0B" }}
+            >
+              <Plus size={16} /> নতুন ব্যয় এন্ট্রি
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <Label className="text-xs">তারিখ</Label>
+                <Input
+                  type="date"
+                  value={expDate}
+                  onChange={(e) => setExpDate(e.target.value)}
+                  data-ocid="dashboard.expense.input"
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">বিভাগ</Label>
+                <select
+                  value={expCat}
+                  onChange={(e) => setExpCat(e.target.value)}
+                  data-ocid="dashboard.expense.select"
+                  className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+                >
+                  {EXPENSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label className="text-xs">পরিমাণ (৳)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={expAmt}
+                  onChange={(e) => setExpAmt(e.target.value)}
+                  placeholder="যেমন: 2000"
+                  data-ocid="dashboard.expense.input"
+                  className="text-sm"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">বিবরণ (ঐচ্ছিক)</Label>
+                <Input
+                  value={expDesc}
+                  onChange={(e) => setExpDesc(e.target.value)}
+                  placeholder="বিস্তারিত"
+                  data-ocid="dashboard.expense.input"
+                  className="text-sm"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={saveExpense}
+              data-ocid="dashboard.expense.submit_button"
+              className="mt-3 flex items-center gap-1.5 px-4 py-2 rounded-md text-white text-sm font-semibold transition-opacity hover:opacity-90"
+              style={{ backgroundColor: "#F59E0B" }}
+            >
+              <Plus size={15} /> সংরক্ষণ করুন
+            </button>
+          </div>
+
+          <div className="bg-card rounded-lg shadow-card overflow-auto">
+            <div
+              className="px-4 pt-4 pb-2 font-semibold text-sm"
+              style={{ color: "#F59E0B" }}
+            >
+              সাম্প্রতিক এন্ট্রি (সর্বশেষ ১০টি)
+            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>তারিখ</TableHead>
+                  <TableHead>বিভাগ</TableHead>
+                  <TableHead>বিবরণ</TableHead>
+                  <TableHead>পরিমাণ</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {expenseRecords.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center text-muted-foreground py-6"
+                      data-ocid="dashboard.expense.empty_state"
+                    >
+                      কোনো ব্যয় এন্ট্রি নেই।
+                    </TableCell>
+                  </TableRow>
+                )}
+                {expenseRecords.slice(0, 10).map((r, i) => (
+                  <TableRow
+                    key={r.id}
+                    data-ocid={`dashboard.expense.item.${i + 1}`}
+                  >
+                    <TableCell className="text-sm">{r.date}</TableCell>
+                    <TableCell
+                      className="text-sm font-medium"
+                      style={{ color: "#D97706" }}
+                    >
+                      {r.category || EXPENSE_CATEGORIES[0]}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {r.description || "—"}
+                    </TableCell>
+                    <TableCell
+                      className="font-semibold text-sm"
+                      style={{ color: "#B45309" }}
+                    >
+                      {taka(r.amount)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -4106,6 +4586,7 @@ type IncomeRecord = {
   date: string;
   amount: number;
   description: string;
+  category?: string;
 };
 
 function IncomePage() {
@@ -4121,6 +4602,7 @@ function IncomePage() {
   );
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(INCOME_CATEGORIES[0]);
 
   function save() {
     if (!amount || Number(amount) <= 0) {
@@ -4132,6 +4614,7 @@ function IncomePage() {
       date,
       amount: Number(amount),
       description: description.trim(),
+      category,
     };
     const updated = [newRecord, ...records];
     setRecords(updated);
@@ -4162,7 +4645,7 @@ function IncomePage() {
       {/* Entry Form */}
       <div className="bg-card rounded-lg shadow-card p-5">
         <h2 className="font-semibold mb-4 text-lg">নতুন আয় এন্ট্রি</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Label>তারিখ</Label>
             <Input
@@ -4171,6 +4654,21 @@ function IncomePage() {
               onChange={(e) => setDate(e.target.value)}
               data-ocid="income.input"
             />
+          </div>
+          <div>
+            <Label>বিভাগ</Label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              data-ocid="income.select"
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              {INCOME_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <Label>পরিমাণ (৳)</Label>
@@ -4210,6 +4708,7 @@ function IncomePage() {
             <TableRow>
               <TableHead>#</TableHead>
               <TableHead>তারিখ</TableHead>
+              <TableHead>বিভাগ</TableHead>
               <TableHead>বিবরণ</TableHead>
               <TableHead>পরিমাণ (৳)</TableHead>
               <TableHead>অ্যাকশন</TableHead>
@@ -4231,6 +4730,9 @@ function IncomePage() {
               <TableRow key={r.id} data-ocid={`income.item.${i + 1}`}>
                 <TableCell>{i + 1}</TableCell>
                 <TableCell>{r.date}</TableCell>
+                <TableCell className="font-medium" style={{ color: "#06B6D4" }}>
+                  {r.category || INCOME_CATEGORIES[0]}
+                </TableCell>
                 <TableCell>{r.description || "—"}</TableCell>
                 <TableCell className="font-semibold text-green-700">
                   {taka(r.amount)}
@@ -4250,7 +4752,7 @@ function IncomePage() {
             ))}
             {records.length > 0 && (
               <TableRow className="font-bold bg-green-50">
-                <TableCell colSpan={3} className="text-right">
+                <TableCell colSpan={4} className="text-right">
                   মোট আয়:
                 </TableCell>
                 <TableCell className="text-green-700 text-lg">
@@ -4273,6 +4775,7 @@ type ExpenseRecord = {
   date: string;
   amount: number;
   description: string;
+  category?: string;
 };
 
 function ExpensePage() {
@@ -4288,6 +4791,7 @@ function ExpensePage() {
   );
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(EXPENSE_CATEGORIES[0]);
 
   function save() {
     if (!amount || Number(amount) <= 0) {
@@ -4299,6 +4803,7 @@ function ExpensePage() {
       date,
       amount: Number(amount),
       description: description.trim(),
+      category,
     };
     const updated = [newRecord, ...records];
     setRecords(updated);
@@ -4329,7 +4834,7 @@ function ExpensePage() {
       {/* Entry Form */}
       <div className="bg-card rounded-lg shadow-card p-5">
         <h2 className="font-semibold mb-4 text-lg">নতুন ব্যয় এন্ট্রি</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Label>তারিখ</Label>
             <Input
@@ -4338,6 +4843,21 @@ function ExpensePage() {
               onChange={(e) => setDate(e.target.value)}
               data-ocid="expense.input"
             />
+          </div>
+          <div>
+            <Label>বিভাগ</Label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              data-ocid="expense.select"
+              className="w-full h-9 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              {EXPENSE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
             <Label>পরিমাণ (৳)</Label>
@@ -4377,6 +4897,7 @@ function ExpensePage() {
             <TableRow>
               <TableHead>#</TableHead>
               <TableHead>তারিখ</TableHead>
+              <TableHead>বিভাগ</TableHead>
               <TableHead>বিবরণ</TableHead>
               <TableHead>পরিমাণ (৳)</TableHead>
               <TableHead>অ্যাকশন</TableHead>
@@ -4398,6 +4919,9 @@ function ExpensePage() {
               <TableRow key={r.id} data-ocid={`expense.item.${i + 1}`}>
                 <TableCell>{i + 1}</TableCell>
                 <TableCell>{r.date}</TableCell>
+                <TableCell className="font-medium" style={{ color: "#D97706" }}>
+                  {r.category || EXPENSE_CATEGORIES[0]}
+                </TableCell>
                 <TableCell>{r.description || "—"}</TableCell>
                 <TableCell className="font-semibold text-red-700">
                   {taka(r.amount)}
@@ -4417,7 +4941,7 @@ function ExpensePage() {
             ))}
             {records.length > 0 && (
               <TableRow className="font-bold bg-red-50">
-                <TableCell colSpan={3} className="text-right">
+                <TableCell colSpan={4} className="text-right">
                   মোট ব্যয়:
                 </TableCell>
                 <TableCell className="text-red-700 text-lg">

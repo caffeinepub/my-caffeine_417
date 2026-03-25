@@ -156,17 +156,72 @@ function taka(amount: number): string {
 
 // ─── Sidebar ────────────────────────────────────────────────────────────────
 
-const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
-  { id: "dashboard", label: "ড্যাশবোর্ড", icon: <LayoutDashboard size={18} /> },
-  { id: "medicines", label: "ওষুধ স্টক", icon: <Pill size={18} /> },
-  { id: "due", label: "বিক্রয়", icon: <ShoppingCart size={18} /> },
-  { id: "dueledger", label: "বকেয়া খাতা", icon: <ClipboardList size={18} /> },
-  { id: "purchases", label: "ক্রয়", icon: <PackageSearch size={18} /> },
-  { id: "income", label: "আয়", icon: <TrendingUp size={18} /> },
-  { id: "expense", label: "ব্যয়", icon: <TrendingDown size={18} /> },
-  { id: "reports", label: "রিপোর্ট", icon: <BarChart3 size={18} /> },
-  { id: "settings", label: "সেটিং", icon: <Settings size={18} /> },
-  { id: "about", label: "আমাদের সম্পর্কে", icon: <Info size={18} /> },
+const navItems: {
+  id: Page;
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+}[] = [
+  {
+    id: "dashboard",
+    label: "ড্যাশবোর্ড",
+    icon: <LayoutDashboard size={18} />,
+    color: "#4F8EF7",
+  },
+  {
+    id: "medicines",
+    label: "ওষুধ স্টক",
+    icon: <Pill size={18} />,
+    color: "#10B981",
+  },
+  {
+    id: "purchases",
+    label: "ক্রয়",
+    icon: <PackageSearch size={18} />,
+    color: "#F59E0B",
+  },
+  {
+    id: "due",
+    label: "বিক্রয়",
+    icon: <ShoppingCart size={18} />,
+    color: "#8B5CF6",
+  },
+  {
+    id: "dueledger",
+    label: "বকেয়া খাতা",
+    icon: <ClipboardList size={18} />,
+    color: "#EF4444",
+  },
+  {
+    id: "income",
+    label: "আয়",
+    icon: <TrendingUp size={18} />,
+    color: "#06B6D4",
+  },
+  {
+    id: "expense",
+    label: "ব্যয়",
+    icon: <TrendingDown size={18} />,
+    color: "#F97316",
+  },
+  {
+    id: "reports",
+    label: "রিপোর্ট",
+    icon: <BarChart3 size={18} />,
+    color: "#EC4899",
+  },
+  {
+    id: "settings",
+    label: "সেটিং",
+    icon: <Settings size={18} />,
+    color: "#A78BFA",
+  },
+  {
+    id: "about",
+    label: "আমাদের সম্পর্কে",
+    icon: <Info size={18} />,
+    color: "#34D399",
+  },
 ];
 
 function Sidebar({
@@ -232,15 +287,15 @@ function Sidebar({
                 onChange(item.id);
                 onClose();
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200
                 ${
                   current === item.id
-                    ? "text-white"
-                    : "text-white/70 hover:text-white hover:bg-white/10"
+                    ? "bg-white/15 shadow-sm"
+                    : "hover:bg-white/8"
                 }`}
-              style={current === item.id ? { backgroundColor: "#1F6D63" } : {}}
+              style={{ color: item.color }}
             >
-              {item.icon}
+              <span style={{ color: item.color }}>{item.icon}</span>
               {item.label}
             </button>
           ))}
@@ -2035,6 +2090,270 @@ function SalesPage({
 
 // ─── Purchases Page ──────────────────────────────────────────────────────────
 
+const GENERIC_TO_BRANDS: Record<string, string[]> = {
+  paracetamol: [
+    "নাপা",
+    "নাপা এক্সট্রা",
+    "নাপা এক্সটেন্ড",
+    "এইস / ACE",
+    "Fast",
+    "Pyrex",
+    "Reset",
+    "প্যারাসিটামল ট্যাবলেট",
+    "Max Para",
+    "Para",
+    "Fevex",
+    "Tylenol",
+  ],
+  প্যারাসিটামল: [
+    "নাপা",
+    "নাপা এক্সট্রা",
+    "নাপা এক্সটেন্ড",
+    "এইস / ACE",
+    "Fast",
+    "Pyrex",
+    "Reset",
+    "প্যারাসিটামল ট্যাবলেট",
+    "Max Para",
+    "Para",
+    "Fevex",
+  ],
+  amoxicillin: [
+    "Moxacil",
+    "Amoxil",
+    "Bactamox",
+    "Amoxicap",
+    "Moxilen",
+    "Amoclan",
+    "Tycil",
+  ],
+  অ্যামক্সিসিলিন: [
+    "Moxacil",
+    "Amoxil",
+    "Bactamox",
+    "Amoxicap",
+    "Moxilen",
+    "Tycil",
+  ],
+  metronidazole: ["Amodis", "Flagyl", "Metryl", "Filmet", "Trichozole"],
+  মেট্রোনিডাজল: ["Amodis", "Flagyl", "Metryl", "Filmet"],
+  omeprazole: ["Losectil", "Omez", "Omidon", "Omeprol", "Neoprazol", "Opton"],
+  ওমেপ্রাজল: ["Losectil", "Omez", "Omidon", "Omeprol"],
+  cetirizine: ["Alatrol", "Cetizin", "Histalex", "Riz", "Ceticad", "Alercet"],
+  সেটিরিজিন: ["Alatrol", "Cetizin", "Histalex", "Riz"],
+  azithromycin: [
+    "Zithromax",
+    "Zimax",
+    "Azit",
+    "Azithrox",
+    "Azimac",
+    "Zetro",
+    "Atm",
+  ],
+  অ্যাজিথ্রোমাইসিন: ["Zimax", "Azit", "Azithrox"],
+  ciprofloxacin: [
+    "Ciprocin",
+    "Cipro",
+    "Ciproflox",
+    "Cipro-A",
+    "Ciplox",
+    "Neofloxin",
+  ],
+  সিপ্রোফ্লক্সাসিন: ["Ciprocin", "Cipro", "Ciproflox"],
+  diclofenac: ["Voveran", "Diclofen", "Divon", "Cataflam", "Dicsol", "Dolo"],
+  ডাইক্লোফেনাক: ["Voveran", "Diclofen", "Divon"],
+  ranitidine: ["Neotak", "Ranison", "Radin", "Rantac", "Gastrol"],
+  র‍্যানিটিডিন: ["Neotak", "Ranison", "Radin"],
+  salbutamol: ["Ventolin", "Salmol", "Salbuvent", "Asmalin", "Sultolin"],
+  সালবিউটামল: ["Ventolin", "Salmol", "Salbuvent"],
+  amlodipine: ["Amdocal", "Amlocard", "Amlodin", "Amtas", "Norvasc", "Amlovas"],
+  অ্যামলোডিপিন: ["Amdocal", "Amlocard", "Amlodin"],
+  metformin: ["Glucomin", "Formet", "Metformi", "Formit", "Metfor", "Diabecon"],
+  মেটফরমিন: ["Glucomin", "Formet", "Metformi"],
+  atorvastatin: ["Atova", "Lipitor", "Atorin", "Atrovas", "Lipostat"],
+  অ্যাটোরভাস্ট্যাটিন: ["Atova", "Lipitor", "Atorin"],
+  fluconazole: ["Flucoral", "Fluzole", "Flucon", "Flucos", "Diflu"],
+  ফ্লুকোনাজল: ["Flucoral", "Fluzole", "Flucon"],
+  clotrimazole: ["Candid", "Clotrin", "Myco-F", "Fungidal"],
+  ক্লোট্রিমাজল: ["Candid", "Clotrin"],
+  cefuroxime: ["Zinnat", "Cef-3", "Cefim", "Cefurox", "Xorimax"],
+  সেফুরোক্সিম: ["Zinnat", "Cef-3", "Cefim"],
+  pantoprazole: ["Pantop", "Pantonix", "Panto", "Pantocid", "Pantosec"],
+  প্যান্টোপ্রাজল: ["Pantop", "Pantonix", "Panto"],
+  levofloxacin: ["Lebact", "Levoflox", "Levotas", "Tavanic", "Lefox"],
+  লেভোফ্লক্সাসিন: ["Lebact", "Levoflox", "Levotas"],
+  ibuprofen: ["Brufen", "Ibufen", "Ibugesic", "Nurofen", "Profen", "Advil"],
+  আইবুপ্রোফেন: ["Brufen", "Ibufen", "Ibugesic"],
+  fexofenadine: ["Fexo", "Telfast", "Fexodine", "Allegra", "Fexofed"],
+  ফেক্সোফেনাডিন: ["Fexo", "Telfast", "Allegra"],
+  montelukast: ["Singulair", "Montair", "Montexa", "Montek"],
+  মন্টেলুকাস্ট: ["Singulair", "Montair", "Montexa"],
+};
+
+const BRAND_TO_COMPANY: Record<string, string> = {
+  // Paracetamol brands
+  নাপা: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  "নাপা এক্সট্রা": "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  "নাপা এক্সটেন্ড": "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  "এইস / ACE": "স্কয়ার ফার্মাসিউটিক্যালস",
+  Fast: "এসিআই লিমিটেড",
+  Pyrex: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Reset: "অপসোনিন ফার্মা",
+  "প্যারাসিটামল ট্যাবলেট": "এসেনসিয়াল ড্রাগস কোম্পানি",
+  Tylenol: "জনসন অ্যান্ড জনসন",
+  // Amoxicillin brands
+  Moxacil: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Amoxil: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Bactamox: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Amoxicap: "একমি ল্যাবরেটরিজ",
+  Moxilen: "অপসোনিন ফার্মা",
+  Amoclan: "এসকেয়েফ ফার্মাসিউটিক্যালস",
+  Tycil: "রেনেটা লিমিটেড",
+  // Metronidazole brands
+  Amodis: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Flagyl: "অপসোনিন ফার্মা",
+  Metryl: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Filmet: "রেনেটা লিমিটেড",
+  Trichozole: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  // Omeprazole brands
+  Losectil: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Omez: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Omidon: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Omeprol: "একমি ল্যাবরেটরিজ",
+  Neoprazol: "রেনেটা লিমিটেড",
+  Opton: "অপসোনিন ফার্মা",
+  // Cetirizine brands
+  Alatrol: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Cetizin: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Histalex: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Riz: "রেনেটা লিমিটেড",
+  Ceticad: "একমি ল্যাবরেটরিজ",
+  Alercet: "অপসোনিন ফার্মা",
+  // Azithromycin brands
+  Zithromax: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Zimax: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Azit: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Azithrox: "রেনেটা লিমিটেড",
+  Azimac: "একমি ল্যাবরেটরিজ",
+  Zetro: "অপসোনিন ফার্মা",
+  Atm: "এসকেয়েফ ফার্মাসিউটিক্যালস",
+  // Ciprofloxacin brands
+  Ciprocin: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Cipro: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Ciproflox: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  "Cipro-A": "একমি ল্যাবরেটরিজ",
+  Ciplox: "রেনেটা লিমিটেড",
+  Neofloxin: "অপসোনিন ফার্মা",
+  // Diclofenac brands
+  Voveran: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Diclofen: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Divon: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Cataflam: "নোভার্টিস",
+  Dicsol: "একমি ল্যাবরেটরিজ",
+  Dolo: "অপসোনিন ফার্মা",
+  // Ranitidine brands
+  Neotak: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Ranison: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Radin: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Rantac: "একমি ল্যাবরেটরিজ",
+  Gastrol: "অপসোনিন ফার্মা",
+  // Salbutamol brands
+  Ventolin: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Salmol: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Salbuvent: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Asmalin: "রেনেটা লিমিটেড",
+  Sultolin: "একমি ল্যাবরেটরিজ",
+  // Amlodipine brands
+  Amdocal: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Amlocard: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Amlodin: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Amtas: "রেনেটা লিমিটেড",
+  Norvasc: "ফাইজার",
+  Amlovas: "একমি ল্যাবরেটরিজ",
+  // Metformin brands
+  Glucomin: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Formet: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Metformi: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Formit: "রেনেটা লিমিটেড",
+  Metfor: "একমি ল্যাবরেটরিজ",
+  Diabecon: "অপসোনিন ফার্মা",
+  // Atorvastatin brands
+  Atova: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Lipitor: "ফাইজার / বেক্সিমকো",
+  Atorin: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Atrovas: "রেনেটা লিমিটেড",
+  Lipostat: "একমি ল্যাবরেটরিজ",
+  // Fluconazole brands
+  Flucoral: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Fluzole: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Flucon: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Flucos: "রেনেটা লিমিটেড",
+  Diflu: "একমি ল্যাবরেটরিজ",
+  // Clotrimazole brands
+  Candid: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Clotrin: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  "Myco-F": "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Fungidal: "রেনেটা লিমিটেড",
+  // Cefuroxime brands
+  Zinnat: "স্কয়ার ফার্মাসিউটিক্যালস",
+  "Cef-3": "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Cefim: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Cefurox: "একমি ল্যাবরেটরিজ",
+  Xorimax: "রেনেটা লিমিটেড",
+  // Pantoprazole brands
+  Pantop: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Pantonix: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Panto: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Pantocid: "রেনেটা লিমিটেড",
+  Pantosec: "একমি ল্যাবরেটরিজ",
+  // Levofloxacin brands
+  Lebact: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Levoflox: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Levotas: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Tavanic: "অপসোনিন ফার্মা",
+  Lefox: "রেনেটা লিমিটেড",
+  // Ibuprofen brands
+  Brufen: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Ibufen: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Ibugesic: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Nurofen: "রেনেটা লিমিটেড",
+  Profen: "একমি ল্যাবরেটরিজ",
+  Advil: "অপসোনিন ফার্মা",
+  // Fexofenadine brands
+  Fexo: "স্কয়ার ফার্মাসিউটিক্যালস",
+  Telfast: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Fexodine: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Allegra: "অপসোনিন ফার্মা",
+  Fexofed: "রেনেটা লিমিটেড",
+  // Montelukast brands
+  Singulair: "MSD / স্কয়ার ফার্মাসিউটিক্যালস",
+  Montair: "বেক্সিমকো ফার্মাসিউটিক্যালস",
+  Montexa: "ইনসেপ্টা ফার্মাসিউটিক্যালস",
+  Montek: "রেনেটা লিমিটেড",
+};
+
+function getCompanyForBrand(
+  brandName: string,
+  customBrandCompany: Record<string, string>,
+): string {
+  return BRAND_TO_COMPANY[brandName] || customBrandCompany[brandName] || "";
+}
+function getBrandsForGeneric(
+  genericName: string,
+  customBrandsByGeneric: Record<string, string[]>,
+): string[] {
+  const normalized = genericName.trim().toLowerCase();
+  if (!normalized) return [];
+  const matchingKey = Object.keys(GENERIC_TO_BRANDS).find(
+    (key) =>
+      key.toLowerCase().includes(normalized) ||
+      normalized.includes(key.toLowerCase()),
+  );
+  const baseBrands = matchingKey ? GENERIC_TO_BRANDS[matchingKey] : [];
+  const customBrands = customBrandsByGeneric[normalized] || [];
+  return [...new Set([...baseBrands, ...customBrands])];
+}
+
 function PurchasesPage({
   medicines,
   purchases,
@@ -2062,6 +2381,28 @@ function PurchasesPage({
   const [expiryDate, setExpiryDate] = useState("");
   const [minStockAlert, setMinStockAlert] = useState("10");
   const [saving, setSaving] = useState(false);
+  const [customBrandsByGeneric, setCustomBrandsByGeneric] = useState<
+    Record<string, string[]>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("customBrandsByGeneric") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [showAddBrandDialog, setShowAddBrandDialog] = useState(false);
+  const [newBrandInput, setNewBrandInput] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [newCompanyInput, setNewCompanyInput] = useState("");
+  const [customBrandCompany, setCustomBrandCompany] = useState<
+    Record<string, string>
+  >(() => {
+    try {
+      return JSON.parse(localStorage.getItem("customBrandCompany") || "{}");
+    } catch {
+      return {};
+    }
+  });
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [units, setUnits] = useState<string[]>(getQtyUnits());
   const [newUnit, setNewUnit] = useState("");
@@ -2079,10 +2420,39 @@ function PurchasesPage({
     setMedicineName(m.name);
     setStrength("");
     setBrand(m.brand);
+    setCompanyName(getCompanyForBrand(m.brand, customBrandCompany));
     setItemType(m.itemType);
     setSellingPrice(String(Number(m.sellingPrice)));
     setCostPrice(String(Number(m.purchasePrice)));
     setShowSuggestions(false);
+  }
+
+  function addCustomBrand() {
+    const trimmed = newBrandInput.trim();
+    if (!trimmed) return;
+    const genericKey = medicineName.trim().toLowerCase();
+    const updated = {
+      ...customBrandsByGeneric,
+      [genericKey]: [...(customBrandsByGeneric[genericKey] || []), trimmed],
+    };
+    setCustomBrandsByGeneric(updated);
+    localStorage.setItem("customBrandsByGeneric", JSON.stringify(updated));
+    if (newCompanyInput.trim()) {
+      const updatedCompany = {
+        ...customBrandCompany,
+        [trimmed]: newCompanyInput.trim(),
+      };
+      setCustomBrandCompany(updatedCompany);
+      localStorage.setItem(
+        "customBrandCompany",
+        JSON.stringify(updatedCompany),
+      );
+      setCompanyName(newCompanyInput.trim());
+    }
+    setBrand(trimmed);
+    setNewBrandInput("");
+    setNewCompanyInput("");
+    setShowAddBrandDialog(false);
   }
 
   function handleSupplierChange(value: string) {
@@ -2187,6 +2557,8 @@ function PurchasesPage({
       setMedicineName("");
       setStrength("");
       setBrand("");
+      setCompanyName("");
+      setNewCompanyInput("");
       setItemType("Tablet");
       setQty("1");
       setQtyUnit("Piece");
@@ -2336,323 +2708,414 @@ function PurchasesPage({
   }
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">ক্রয়</h1>
+    <>
+      <div className="space-y-6">
+        <h1 className="text-2xl font-bold">ক্রয়</h1>
 
-      <div className="bg-card rounded-lg shadow-card p-5">
-        <h2 className="font-semibold mb-4">নতুন ক্রয় এন্ট্রি</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Medicine name with autocomplete */}
-          <div className="relative lg:col-span-2">
-            <Label>ঔষধের নাম *</Label>
-            <Input
-              data-ocid="purchases.input"
-              value={medicineName}
-              onChange={(e) => {
-                setMedicineName(e.target.value);
-                setShowSuggestions(true);
-              }}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              onFocus={() => setShowSuggestions(true)}
-              placeholder="ঔষধের নাম লিখুন..."
-            />
-            {showSuggestions && suggestions.length > 0 && (
-              <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
-                {suggestions.map((m) => (
-                  <button
-                    key={String(m.id)}
-                    type="button"
-                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                    onMouseDown={() => selectSuggestion(m)}
-                  >
-                    <span className="font-medium">{m.name}</span>
-                    <span className="text-muted-foreground ml-2">
-                      ({m.brand})
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <Label>Strength/Size</Label>
-            <Input
-              value={strength}
-              onChange={(e) => setStrength(e.target.value)}
-              placeholder="যেমন: 500mg, 100ml"
-            />
-          </div>
-
-          <div>
-            <Label>ব্র্যান্ড</Label>
-            <Input
-              value={brand}
-              onChange={(e) => setBrand(e.target.value)}
-              placeholder="কোম্পানির নাম"
-            />
-          </div>
-
-          <div>
-            <Label>ধরন</Label>
-            <Select value={itemType} onValueChange={setItemType}>
-              <SelectTrigger data-ocid="purchases.select">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {[
-                  "Tablet",
-                  "Syrup",
-                  "Capsule",
-                  "Injection",
-                  "Cream",
-                  "Drop",
-                  "Powder",
-                  "Inhaler",
-                  "Suppository",
-                ].map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div>
-            <Label>পরিমাণ ও ইউনিট</Label>
-            <div className="flex gap-2">
+        <div className="bg-card rounded-lg shadow-card p-5">
+          <h2 className="font-semibold mb-4">নতুন ক্রয় এন্ট্রি</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Medicine name with autocomplete */}
+            <div className="relative lg:col-span-2">
+              <Label>ঔষধের নাম (Generic Name) *</Label>
               <Input
-                type="number"
-                min="1"
-                value={qty}
-                onChange={(e) => setQty(e.target.value)}
-                className="w-24"
+                data-ocid="purchases.input"
+                value={medicineName}
+                onChange={(e) => {
+                  setMedicineName(e.target.value);
+                  setBrand("");
+                  setShowSuggestions(true);
+                }}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                onFocus={() => setShowSuggestions(true)}
+                placeholder="Generic Name লিখুন (যেমন: Paracetamol, Amoxicillin)"
               />
-              <Select value={qtyUnit} onValueChange={setQtyUnit}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue />
+              {showSuggestions && suggestions.length > 0 && (
+                <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-48 overflow-auto">
+                  {suggestions.map((m) => (
+                    <button
+                      key={String(m.id)}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                      onMouseDown={() => selectSuggestion(m)}
+                    >
+                      <span className="font-medium">{m.name}</span>
+                      <span className="text-muted-foreground ml-2">
+                        ({m.brand})
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>Strength/Size</Label>
+              <Input
+                value={strength}
+                onChange={(e) => setStrength(e.target.value)}
+                placeholder="যেমন: 500mg, 100ml"
+              />
+            </div>
+
+            <div>
+              <Label>ব্র্যান্ড নেম</Label>
+              <Select
+                value={brand}
+                onValueChange={(v) => {
+                  if (v === "__add_new__") {
+                    setShowAddBrandDialog(true);
+                  } else {
+                    setBrand(v);
+                    setCompanyName(getCompanyForBrand(v, customBrandCompany));
+                  }
+                }}
+              >
+                <SelectTrigger data-ocid="purchases.brand.select">
+                  <SelectValue placeholder="ব্র্যান্ড নেম নির্বাচন করুন" />
                 </SelectTrigger>
                 <SelectContent>
-                  {units.map((u) => (
-                    <SelectItem key={u} value={u}>
-                      {u}
-                    </SelectItem>
-                  ))}
-                  <div className="flex gap-1 p-2 border-t">
-                    <input
-                      className="flex-1 text-sm border rounded px-2 py-1"
-                      placeholder="নতুন ইউনিট"
-                      value={newUnit}
-                      onChange={(e) => setNewUnit(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && addUnit()}
-                    />
-                    <button
-                      type="button"
-                      className="text-xs bg-primary text-primary-foreground px-2 rounded"
-                      onClick={addUnit}
-                    >
-                      +
-                    </button>
-                  </div>
+                  {getBrandsForGeneric(medicineName, customBrandsByGeneric)
+                    .length === 0 &&
+                    medicineName.trim() && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">
+                        এই জেনেরিকের ব্র্যান্ড পাওয়া যায়নি
+                      </div>
+                    )}
+                  {getBrandsForGeneric(medicineName, customBrandsByGeneric).map(
+                    (b) => (
+                      <SelectItem key={b} value={b}>
+                        {b}
+                      </SelectItem>
+                    ),
+                  )}
+                  <SelectItem
+                    value="__add_new__"
+                    className="text-primary font-medium"
+                  >
+                    + নতুন ব্র্যান্ড যোগ করুন
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div>
-            <Label>ক্রয়মূল্য / Cost Price (৳)</Label>
-            <Input
-              type="number"
-              value={costPrice}
-              onChange={(e) => setCostPrice(e.target.value)}
-              placeholder="০"
-            />
-          </div>
+            <div>
+              <Label>কোম্পানি নেম</Label>
+              <Input
+                value={companyName}
+                readOnly
+                placeholder="ব্র্যান্ড নির্বাচনে স্বয়ংক্রিয় পূরণ হবে"
+                className="bg-muted cursor-not-allowed"
+              />
+            </div>
 
-          <div>
-            <Label>বিক্রয়মূল্য / Selling Price (৳)</Label>
-            <Input
-              type="number"
-              value={sellingPrice}
-              onChange={(e) => setSellingPrice(e.target.value)}
-              placeholder="০"
-            />
-          </div>
+            <div>
+              <Label>ধরন</Label>
+              <Select value={itemType} onValueChange={setItemType}>
+                <SelectTrigger data-ocid="purchases.select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {[
+                    "Tablet",
+                    "Syrup",
+                    "Capsule",
+                    "Injection",
+                    "Cream",
+                    "Drop",
+                    "Powder",
+                    "Inhaler",
+                    "Suppository",
+                  ].map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="relative">
-            <Label>Supplier নাম</Label>
-            <Input
-              value={supplier}
-              onChange={(e) => handleSupplierChange(e.target.value)}
-              onBlur={() =>
-                setTimeout(() => setShowSupplierSuggestions(false), 150)
-              }
-              onFocus={() =>
-                setShowSupplierSuggestions(supplier.trim().length > 0)
-              }
-              placeholder="সরবরাহকারীর নাম"
-            />
-            {showSupplierSuggestions && supplierSuggestions.length > 0 && (
-              <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-40 overflow-auto">
-                {supplierSuggestions.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
-                    onMouseDown={() => {
-                      const dir = getSupplierDirectory();
-                      const found = dir[s];
-                      setSupplier(s);
-                      if (found) {
-                        setSupplierAddress(found.address);
-                        setSupplierMobile(found.mobile);
-                      }
-                      setShowSupplierSuggestions(false);
-                    }}
-                  >
-                    {s}
-                  </button>
-                ))}
+            <div>
+              <Label>পরিমাণ ও ইউনিট</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="number"
+                  min="1"
+                  value={qty}
+                  onChange={(e) => setQty(e.target.value)}
+                  className="w-24"
+                />
+                <Select value={qtyUnit} onValueChange={setQtyUnit}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {units.map((u) => (
+                      <SelectItem key={u} value={u}>
+                        {u}
+                      </SelectItem>
+                    ))}
+                    <div className="flex gap-1 p-2 border-t">
+                      <input
+                        className="flex-1 text-sm border rounded px-2 py-1"
+                        placeholder="নতুন ইউনিট"
+                        value={newUnit}
+                        onChange={(e) => setNewUnit(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && addUnit()}
+                      />
+                      <button
+                        type="button"
+                        className="text-xs bg-primary text-primary-foreground px-2 rounded"
+                        onClick={addUnit}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-          </div>
+            </div>
 
-          <div>
-            <Label>সরবরাহকারীর ঠিকানা</Label>
-            <Input
-              value={supplierAddress}
-              onChange={(e) => setSupplierAddress(e.target.value)}
-              placeholder="ঠিকানা লিখুন"
-            />
-          </div>
+            <div>
+              <Label>ক্রয়মূল্য / Cost Price (৳)</Label>
+              <Input
+                type="number"
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value)}
+                placeholder="০"
+              />
+            </div>
 
-          <div>
-            <Label>সরবরাহকারীর মোবাইল নম্বর</Label>
-            <Input
-              value={supplierMobile}
-              onChange={(e) => setSupplierMobile(e.target.value)}
-              placeholder="মোবাইল নম্বর"
-            />
-          </div>
+            <div>
+              <Label>বিক্রয়মূল্য / Selling Price (৳)</Label>
+              <Input
+                type="number"
+                value={sellingPrice}
+                onChange={(e) => setSellingPrice(e.target.value)}
+                placeholder="০"
+              />
+            </div>
 
-          <div>
-            <Label>মেয়াদ উত্তীর্ণ তারিখ</Label>
-            <Input
-              type="date"
-              value={expiryDate}
-              onChange={(e) => setExpiryDate(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <Label>সর্বনিম্ন স্টক সতর্কতা</Label>
-            <Input
-              type="number"
-              min="0"
-              value={minStockAlert}
-              onChange={(e) => setMinStockAlert(e.target.value)}
-            />
-          </div>
-
-          <div className="lg:col-span-3 flex justify-end pt-2">
-            <Button
-              data-ocid="purchases.submit_button"
-              onClick={handleSubmit}
-              disabled={saving}
-              style={{ backgroundColor: "#1F6D63" }}
-              className="px-8"
-            >
-              {saving ? "সংরক্ষণ হচ্ছে..." : "ক্রয় নিশ্চিত করুন — স্টকে যোগ করুন"}
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-card rounded-lg shadow-card overflow-auto">
-        <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center gap-3">
-          <h2 className="font-semibold flex-1">ক্রয় ইতিহাস</h2>
-          <div className="flex items-center gap-2">
-            <select
-              className="border rounded px-2 py-1 text-sm bg-background"
-              value={selectedExportSupplier}
-              onChange={(e) => setSelectedExportSupplier(e.target.value)}
-            >
-              <option value="">— সরবরাহকারী বেছে নিন —</option>
-              {uniqueSuppliers.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              className="flex items-center gap-1 bg-emerald-700 text-white px-3 py-1.5 rounded text-sm hover:bg-emerald-800 transition-colors"
-              onClick={() => {
-                if (!selectedExportSupplier) {
-                  toast.error("প্রথমে একটি সরবরাহকারী বেছে নিন");
-                  return;
+            <div className="relative">
+              <Label>Supplier নাম</Label>
+              <Input
+                value={supplier}
+                onChange={(e) => handleSupplierChange(e.target.value)}
+                onBlur={() =>
+                  setTimeout(() => setShowSupplierSuggestions(false), 150)
                 }
-                exportOrderSheetPDF(selectedExportSupplier);
-              }}
-              data-ocid="purchases.primary_button"
-            >
-              <FileText className="w-4 h-4" />
-              অর্ডার শীট PDF
-            </button>
+                onFocus={() =>
+                  setShowSupplierSuggestions(supplier.trim().length > 0)
+                }
+                placeholder="সরবরাহকারীর নাম"
+              />
+              {showSupplierSuggestions && supplierSuggestions.length > 0 && (
+                <div className="absolute z-50 w-full bg-card border rounded-lg shadow-lg mt-1 max-h-40 overflow-auto">
+                  {supplierSuggestions.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className="w-full text-left px-3 py-2 hover:bg-accent text-sm"
+                      onMouseDown={() => {
+                        const dir = getSupplierDirectory();
+                        const found = dir[s];
+                        setSupplier(s);
+                        if (found) {
+                          setSupplierAddress(found.address);
+                          setSupplierMobile(found.mobile);
+                        }
+                        setShowSupplierSuggestions(false);
+                      }}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>সরবরাহকারীর ঠিকানা</Label>
+              <Input
+                value={supplierAddress}
+                onChange={(e) => setSupplierAddress(e.target.value)}
+                placeholder="ঠিকানা লিখুন"
+              />
+            </div>
+
+            <div>
+              <Label>সরবরাহকারীর মোবাইল নম্বর</Label>
+              <Input
+                value={supplierMobile}
+                onChange={(e) => setSupplierMobile(e.target.value)}
+                placeholder="মোবাইল নম্বর"
+              />
+            </div>
+
+            <div>
+              <Label>মেয়াদ উত্তীর্ণ তারিখ</Label>
+              <Input
+                type="date"
+                value={expiryDate}
+                onChange={(e) => setExpiryDate(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label>সর্বনিম্ন স্টক সতর্কতা</Label>
+              <Input
+                type="number"
+                min="0"
+                value={minStockAlert}
+                onChange={(e) => setMinStockAlert(e.target.value)}
+              />
+            </div>
+
+            <div className="lg:col-span-3 flex justify-end pt-2">
+              <Button
+                data-ocid="purchases.submit_button"
+                onClick={handleSubmit}
+                disabled={saving}
+                style={{ backgroundColor: "#1F6D63" }}
+                className="px-8"
+              >
+                {saving ? "সংরক্ষণ হচ্ছে..." : "ক্রয় নিশ্চিত করুন — স্টকে যোগ করুন"}
+              </Button>
+            </div>
           </div>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>#</TableHead>
-              <TableHead>ঔষধ</TableHead>
-              <TableHead>পরিমাণ</TableHead>
-              <TableHead>ক্রয়মূল্য</TableHead>
-              <TableHead>মোট</TableHead>
-              <TableHead>সরবরাহকারী</TableHead>
-              <TableHead>মোবাইল</TableHead>
-              <TableHead>তারিখ</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedPurchases.length === 0 && (
-              <TableRow>
-                <TableCell
-                  colSpan={8}
-                  className="text-center text-muted-foreground py-8"
-                  data-ocid="purchases.empty_state"
-                >
-                  কোনো ক্রয় নেই।
-                </TableCell>
-              </TableRow>
-            )}
-            {sortedPurchases.map((p, i) => (
-              <TableRow
-                key={String(p.id)}
-                data-ocid={`purchases.item.${i + 1}`}
+
+        <div className="bg-card rounded-lg shadow-card overflow-auto">
+          <div className="p-4 border-b flex flex-col sm:flex-row sm:items-center gap-3">
+            <h2 className="font-semibold flex-1">ক্রয় ইতিহাস</h2>
+            <div className="flex items-center gap-2">
+              <select
+                className="border rounded px-2 py-1 text-sm bg-background"
+                value={selectedExportSupplier}
+                onChange={(e) => setSelectedExportSupplier(e.target.value)}
               >
-                <TableCell>{i + 1}</TableCell>
-                <TableCell>{p.medicineName}</TableCell>
-                <TableCell>{String(p.quantity)}</TableCell>
-                <TableCell>{taka(Number(p.unitPrice))}</TableCell>
-                <TableCell className="font-semibold">
-                  {taka(Number(p.totalPrice))}
-                </TableCell>
-                <TableCell>{p.supplierName || "—"}</TableCell>
-                <TableCell>
-                  {(() => {
-                    const dir = getSupplierDirectory();
-                    return dir[p.supplierName]?.mobile || "—";
-                  })()}
-                </TableCell>
-                <TableCell>{formatDate(p.date)}</TableCell>
+                <option value="">— সরবরাহকারী বেছে নিন —</option>
+                {uniqueSuppliers.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="flex items-center gap-1 bg-emerald-700 text-white px-3 py-1.5 rounded text-sm hover:bg-emerald-800 transition-colors"
+                onClick={() => {
+                  if (!selectedExportSupplier) {
+                    toast.error("প্রথমে একটি সরবরাহকারী বেছে নিন");
+                    return;
+                  }
+                  exportOrderSheetPDF(selectedExportSupplier);
+                }}
+                data-ocid="purchases.primary_button"
+              >
+                <FileText className="w-4 h-4" />
+                অর্ডার শীট PDF
+              </button>
+            </div>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>#</TableHead>
+                <TableHead>ঔষধ</TableHead>
+                <TableHead>পরিমাণ</TableHead>
+                <TableHead>ক্রয়মূল্য</TableHead>
+                <TableHead>মোট</TableHead>
+                <TableHead>সরবরাহকারী</TableHead>
+                <TableHead>মোবাইল</TableHead>
+                <TableHead>তারিখ</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {sortedPurchases.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={8}
+                    className="text-center text-muted-foreground py-8"
+                    data-ocid="purchases.empty_state"
+                  >
+                    কোনো ক্রয় নেই।
+                  </TableCell>
+                </TableRow>
+              )}
+              {sortedPurchases.map((p, i) => (
+                <TableRow
+                  key={String(p.id)}
+                  data-ocid={`purchases.item.${i + 1}`}
+                >
+                  <TableCell>{i + 1}</TableCell>
+                  <TableCell>{p.medicineName}</TableCell>
+                  <TableCell>{String(p.quantity)}</TableCell>
+                  <TableCell>{taka(Number(p.unitPrice))}</TableCell>
+                  <TableCell className="font-semibold">
+                    {taka(Number(p.totalPrice))}
+                  </TableCell>
+                  <TableCell>{p.supplierName || "—"}</TableCell>
+                  <TableCell>
+                    {(() => {
+                      const dir = getSupplierDirectory();
+                      return dir[p.supplierName]?.mobile || "—";
+                    })()}
+                  </TableCell>
+                  <TableCell>{formatDate(p.date)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       </div>
-    </div>
+
+      <Dialog open={showAddBrandDialog} onOpenChange={setShowAddBrandDialog}>
+        <DialogContent data-ocid="purchases.brand.dialog">
+          <DialogHeader>
+            <DialogTitle>নতুন ব্র্যান্ড যোগ করুন</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <Label>
+              {medicineName || "এই জেনেরিক"}-এর জন্য নতুন ব্র্যান্ড নাম যোগ করুন
+            </Label>
+            <Input
+              value={newBrandInput}
+              onChange={(e) => setNewBrandInput(e.target.value)}
+              placeholder="ব্র্যান্ড নাম লিখুন..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addCustomBrand();
+              }}
+              autoFocus
+              data-ocid="purchases.brand.input"
+            />
+            <Label>কোম্পানি নাম</Label>
+            <Input
+              value={newCompanyInput}
+              onChange={(e) => setNewCompanyInput(e.target.value)}
+              placeholder="কোম্পানির নাম লিখুন (ঐচ্ছিক)"
+              data-ocid="purchases.brand.company_input"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowAddBrandDialog(false)}
+              data-ocid="purchases.brand.cancel_button"
+            >
+              বাতিল
+            </Button>
+            <Button
+              onClick={addCustomBrand}
+              disabled={!newBrandInput.trim()}
+              data-ocid="purchases.brand.submit_button"
+            >
+              যোগ করুন
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

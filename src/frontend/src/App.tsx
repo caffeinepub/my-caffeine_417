@@ -29,24 +29,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertTriangle,
   BarChart3,
+  Car,
   CheckCircle,
   ClipboardList,
   FileText,
+  Heart,
   Info,
   LayoutDashboard,
   Menu,
+  Package,
+  PackageOpen,
   PackageSearch,
   Pencil,
   Phone,
   Pill,
   Plus,
   Printer,
+  Scissors,
   Settings,
   ShoppingCart,
   Trash2,
   TrendingDown,
   TrendingUp,
   X,
+  Zap,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -2564,6 +2570,198 @@ function SalesPage({
           </p>
         </div>
       )}
+      <ExtraServiceChargesSection />
+    </div>
+  );
+}
+
+function ExtraServiceChargesSection() {
+  type ChargeEntry = {
+    id: string;
+    patientName?: string;
+    amount: number;
+    date: string;
+  };
+
+  const chargeTypes = [
+    {
+      key: "pharma_extra_charge_injection",
+      label: "ইনজেকশন পুশিং চার্জ",
+      color: "#059669",
+      Icon: Zap,
+      ocidPrefix: "injection_charge",
+    },
+    {
+      key: "pharma_extra_charge_bandage",
+      label: "ব্যান্ডেজ চার্জ",
+      color: "#E11D48",
+      Icon: Heart,
+      ocidPrefix: "bandage_charge",
+    },
+    {
+      key: "pharma_extra_charge_suture",
+      label: "সেলাই চার্জ",
+      color: "#7C3AED",
+      Icon: Scissors,
+      ocidPrefix: "suture_charge",
+    },
+  ] as const;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  function loadEntries(key: string): ChargeEntry[] {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEntries(key: string, entries: ChargeEntry[]) {
+    try {
+      localStorage.setItem(key, JSON.stringify(entries));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const [states, setStates] = useState(() =>
+    chargeTypes.map((ct) => ({
+      patientName: "",
+      amount: "",
+      date: today,
+      entries: loadEntries(ct.key),
+    })),
+  );
+
+  function update(idx: number, field: string, value: string) {
+    setStates((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
+    );
+  }
+
+  function saveEntry(idx: number) {
+    const ct = chargeTypes[idx];
+    const s = states[idx];
+    const amt = Number.parseFloat(s.amount);
+    if (!amt || amt <= 0) {
+      toast.error("সঠিক টাকার পরিমাণ দিন");
+      return;
+    }
+    const newEntry: ChargeEntry = {
+      id: String(Date.now()),
+      patientName: s.patientName.trim() || undefined,
+      amount: amt,
+      date: s.date,
+    };
+    const updated = [newEntry, ...loadEntries(ct.key)];
+    saveEntries(ct.key, updated);
+    setStates((prev) =>
+      prev.map((st, i) =>
+        i === idx
+          ? { ...st, amount: "", patientName: "", entries: updated }
+          : st,
+      ),
+    );
+    toast.success(`${ct.label} সংরক্ষিত হয়েছে`);
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-2 mb-4">
+        <div
+          className="w-1 h-6 rounded-full"
+          style={{
+            background: "linear-gradient(to bottom, #059669, #E11D48, #7C3AED)",
+          }}
+        />
+        <h2 className="text-lg font-bold text-foreground">অতিরিক্ত সেবা চার্জ</h2>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {chargeTypes.map((ct, idx) => {
+          const s = states[idx];
+          const Icon = ct.Icon;
+          return (
+            <div
+              key={ct.key}
+              className="rounded-xl border-2 bg-card p-4 shadow-sm"
+              style={{ borderColor: `${ct.color}33` }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="p-1.5 rounded-lg"
+                  style={{ background: `${ct.color}18` }}
+                >
+                  <Icon size={18} style={{ color: ct.color }} />
+                </div>
+                <span
+                  className="font-semibold text-sm"
+                  style={{ color: ct.color }}
+                >
+                  {ct.label}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <Input
+                  placeholder="রোগীর নাম (ঐচ্ছিক)"
+                  value={s.patientName}
+                  onChange={(e) => update(idx, "patientName", e.target.value)}
+                  className="text-sm"
+                  data-ocid={`${ct.ocidPrefix}.input`}
+                />
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="টাকা"
+                    value={s.amount}
+                    onChange={(e) => update(idx, "amount", e.target.value)}
+                    className="text-sm"
+                    data-ocid={`${ct.ocidPrefix}.amount.input`}
+                  />
+                  <Input
+                    type="date"
+                    value={s.date}
+                    onChange={(e) => update(idx, "date", e.target.value)}
+                    className="text-sm"
+                    data-ocid={`${ct.ocidPrefix}.date.input`}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full text-white font-semibold"
+                  style={{ background: ct.color }}
+                  onClick={() => saveEntry(idx)}
+                  data-ocid={`${ct.ocidPrefix}.save_button`}
+                >
+                  সংরক্ষণ করুন
+                </Button>
+              </div>
+              {s.entries.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    সাম্প্রতিক এন্ট্রি:
+                  </p>
+                  {s.entries.slice(0, 5).map((e, ei) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs"
+                      style={{ background: `${ct.color}0D` }}
+                      data-ocid={`${ct.ocidPrefix}.item.${ei + 1}`}
+                    >
+                      <span className="text-muted-foreground">
+                        {e.patientName || e.date}
+                      </span>
+                      <span className="font-bold" style={{ color: ct.color }}>
+                        ৳{e.amount.toLocaleString("bn-BD")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -3595,7 +3793,186 @@ function PurchasesPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExtraCostsSection />
     </>
+  );
+}
+
+function ExtraCostsSection() {
+  type CostEntry = { id: string; amount: number; date: string; note?: string };
+
+  const costTypes = [
+    {
+      key: "pharma_extra_cost_transport",
+      label: "গাড়ি ভাড়া",
+      color: "#EA580C",
+      Icon: Car,
+      ocidPrefix: "transport_cost",
+    },
+    {
+      key: "pharma_extra_cost_loading",
+      label: "লোডিং খরচ",
+      color: "#0F766E",
+      Icon: Package,
+      ocidPrefix: "loading_cost",
+    },
+    {
+      key: "pharma_extra_cost_unloading",
+      label: "আনলোডিং খরচ",
+      color: "#4338CA",
+      Icon: PackageOpen,
+      ocidPrefix: "unloading_cost",
+    },
+  ] as const;
+
+  const today = new Date().toISOString().split("T")[0];
+
+  function loadEntries(key: string): CostEntry[] {
+    try {
+      return JSON.parse(localStorage.getItem(key) || "[]");
+    } catch {
+      return [];
+    }
+  }
+
+  function saveEntries(key: string, entries: CostEntry[]) {
+    try {
+      localStorage.setItem(key, JSON.stringify(entries));
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const [states, setStates] = useState(() =>
+    costTypes.map((ct) => ({
+      amount: "",
+      date: today,
+      note: "",
+      entries: loadEntries(ct.key),
+    })),
+  );
+
+  function update(idx: number, field: string, value: string) {
+    setStates((prev) =>
+      prev.map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
+    );
+  }
+
+  function saveEntry(idx: number) {
+    const ct = costTypes[idx];
+    const s = states[idx];
+    const amt = Number.parseFloat(s.amount);
+    if (!amt || amt <= 0) {
+      toast.error("সঠিক টাকার পরিমাণ দিন");
+      return;
+    }
+    const newEntry: CostEntry = {
+      id: String(Date.now()),
+      amount: amt,
+      date: s.date,
+      note: s.note.trim() || undefined,
+    };
+    const updated = [newEntry, ...loadEntries(ct.key)];
+    saveEntries(ct.key, updated);
+    setStates((prev) =>
+      prev.map((st, i) =>
+        i === idx ? { ...st, amount: "", note: "", entries: updated } : st,
+      ),
+    );
+    toast.success(`${ct.label} সংরক্ষিত হয়েছে`);
+  }
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center gap-2 mb-4">
+        <div
+          className="w-1 h-6 rounded-full"
+          style={{
+            background: "linear-gradient(to bottom, #EA580C, #0F766E, #4338CA)",
+          }}
+        />
+        <h2 className="text-lg font-bold text-foreground">অতিরিক্ত খরচ</h2>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {costTypes.map((ct, idx) => {
+          const s = states[idx];
+          const Icon = ct.Icon;
+          return (
+            <div
+              key={ct.key}
+              className="rounded-xl border-2 bg-card p-4 shadow-sm"
+              style={{ borderColor: `${ct.color}33` }}
+            >
+              <div className="flex items-center gap-2 mb-3">
+                <div
+                  className="p-1.5 rounded-lg"
+                  style={{ background: `${ct.color}18` }}
+                >
+                  <Icon size={18} style={{ color: ct.color }} />
+                </div>
+                <span
+                  className="font-semibold text-sm"
+                  style={{ color: ct.color }}
+                >
+                  {ct.label}
+                </span>
+              </div>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="টাকা"
+                    value={s.amount}
+                    onChange={(e) => update(idx, "amount", e.target.value)}
+                    className="text-sm"
+                    data-ocid={`${ct.ocidPrefix}.amount.input`}
+                  />
+                  <Input
+                    type="date"
+                    value={s.date}
+                    onChange={(e) => update(idx, "date", e.target.value)}
+                    className="text-sm"
+                    data-ocid={`${ct.ocidPrefix}.date.input`}
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full text-white font-semibold"
+                  style={{ background: ct.color }}
+                  onClick={() => saveEntry(idx)}
+                  data-ocid={`${ct.ocidPrefix}.save_button`}
+                >
+                  সংরক্ষণ করুন
+                </Button>
+              </div>
+              {s.entries.length > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    সাম্প্রতিক এন্ট্রি:
+                  </p>
+                  {s.entries.slice(0, 5).map((e, ei) => (
+                    <div
+                      key={e.id}
+                      className="flex items-center justify-between rounded-lg px-2 py-1.5 text-xs"
+                      style={{ background: `${ct.color}0D` }}
+                      data-ocid={`${ct.ocidPrefix}.item.${ei + 1}`}
+                    >
+                      <span className="text-muted-foreground">
+                        {e.note || e.date}
+                      </span>
+                      <span className="font-bold" style={{ color: ct.color }}>
+                        ৳{e.amount.toLocaleString("bn-BD")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
